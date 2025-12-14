@@ -1,45 +1,94 @@
 # TDD Process Safety Report Generation
 
+## Title/Caption
 
- 
-## Introduction
+- **Title:** DSC Report Generation Tool (Python)
+- **Date Generated / Last Updated:** 2025-12-15
+- **Produced For:** Process Safety / Materials reporting workflow (professional ePortfolio artifact)
+- **Artifact Type:** Automation tool + report template pipeline (TXT/PDF → Word report)
 
+## Project Structure
 
+```shell
+.
+├── main.py                      # Application entry point
+├── requirements.txt             # Python dependencies
+├── README.md                    # Project documentation
+├── log.md                       # Development notes / logs
+├── problems.md                  # Known issues / TODOs
+│
+├── src/                         # Source code
+│   ├── config/                  # Configuration (paths, defaults, constants)
+│   │   └── config.py
+│   ├── models/                  # Data models / typed structures for parsed results
+│   │   └── models.py
+│   ├── utils/                   # Core utilities: parsing, templating, text generation
+│   │   ├── parser_dsc.py
+│   │   ├── templating.py
+│   │   └── dsc_text.py
+│   ├── ui/                      # UI layer (PyQt)
+│   │   └── ui_main.py
+│   └── test/                    # Unit tests
+│       └── test_segments.py
+│
+├── data/                        # Report templates (Word .docx)
+│   ├── DSC Report-Empty-2511.docx
+│   └── DSC Report-Empty-2512.docx
+│
+└── CF130G/                      # Sample input assets (example dataset)
+    ├── PrnRes_CF130G_2025-05-06.txt
+    ├── CF130G.pdf
+    └── DSC test for CF130G.docx
+```
 
+## Description/Explanation
 
-## 报告头部 & 样品基本信息
+### Context
 
-| 占位符                   | 含义 / 字段说明              | 填充值来源                              | 备注                                                   |
-|--------------------------|------------------------------|-----------------------------------------|--------------------------------------------------------|
-| {{Customer_information}}| 委托方信息 / Customer        | GUI 手动输入                            | 模板里多了一个 `)`，建议后续改成 `{{Customer_information}}` |
-| {{Request_Name}}         | 项目名称 / Request Name      | GUI 手动输入（可默认 “DSC test for {{Sample_name}}”） |                                                        |
-| {{Submission_Date}}      | 提交日期 / Submission Date   | GUI 手动输入                            | 可默认当前日期或与 Test_Date 保持一致                 |
-| {{Request_Number}}       | 申请编号 / Request Number    | GUI 手动输入                            | 实验/业务内部编号                                     |
-| {{Project_Account}}      | 项目号 / Project Account     | GUI 手动输入                            |                                                        |
-| {{Deadline}}             | 截止日期 / Deadline          | GUI 手动输入                            |                                                        |
-| {{Sample_id}}            | 样品编号 / Sample #          | GUI 手动输入                            | 若有 LIMS / 内部样品号可填此处                        |
-| {{Sample_name}}          | 样品名称 / Sample Name       | **自动**：来自 txt 中 `Sample identity` 或 `Sample name` | 如 CF130G                                              |
-| {{Nature}}               | 样品性质 / Nature            | GUI 手动输入                            | 如 powder, liquid 等                                   |
-| {{Assign_to}}            | 负责人员 / Assigned to       | GUI 手动输入（可默认 txt 中 `Operator`） | 例如默认填入 WX，用户可在界面修改                     |
-| {{Receive_Date}}         | 收样日期 / Receive Date      | GUI 手动输入                            | 若有系统可对接，也可自动生成                          |
-| {{Test_Date}}            | 测试日期 / Test Date         | GUI 手动输入      | 例如 2025/5/6                                          |
-| {{Report_Date}}          | 出报告日期 / Report Date     | GUI 手动输入（可默认当前日期）          |                                                        |
-| {{Crucible}}             | 坩埚类型 / Crucible          | **自动**：来自 txt 中 `Crucible:` 行    | 如 Concavus Al, pierced lid                            |
-| {{Temp.Calib}}           | 温度标定时间 / Temp.Calib.   | **自动**：来自 txt 中 `Temp.Calib.:` 行 | 模板占位符包含点号，代码替换时需按原样写              |
-| {{Request_desc}}         | 检测申请描述 / Request Description | GUI 手动输入                       | 对应模板中 “检测申请描述(REQUEST DESCRIPTION)” 一行    |
-| {{End_Date}}            | 测试日期 / Test Date         | **自动**：来自 txt 中 `nd Date/Time:` 行      | 例如 2025/5/6                                          |
+- **Goal / Purpose:** Automate the creation of standardized DSC (Differential Scanning Calorimetry) reports to reduce manual copy-paste work and improve report consistency and traceability.
+- **Timeline / Scope:** Built as a focused prototype covering parsing, structured data modeling, and Word template report generation, with a pathway for UI-driven operation.
+- **Where / When / For Whom:** Developed for an internal process safety reporting workflow where DSC results must be documented in a consistent format for review and recordkeeping.
+- **My Role / Responsibilities:** Sole developer—responsible for project structure design, parsing logic, data models, template mapping, and end-to-end report generation.
+- **Artifact History:** New build with iterative refinement using sample datasets (e.g., CF130G) and report templates stored under data/.
+  
+### Development Details
 
+#### Resources Used
 
-## DSC 结果表（Result Table）行内占位符
+- python-docx for Word template editing and placeholder replacement
+- PyMuPDF (fitz) for handling PDF content when needed (e.g., figures/screenshots)
+- Modular code organization under src/ (config, models, utils, UI, tests)
 
-| 占位符      | 含义 / 列说明                           | 填充值来源                                        | 备注                                                 |
-|-------------|------------------------------------------|---------------------------------------------------|------------------------------------------------------|
-| {{Segments}}| 测试段信息 / Segments                   | **自动**：来自 txt 中各个 `Segments: 1/3, 2/3, 3/3` | 可写成 “1st heating / cooling / 2nd heating” 或温程描述 |
-| {{Value}}   | 起始温度 / Start observed (Value)       | **自动**：对应 `Value (DSC) ... °C`               | 每个 Complex Peak 的起点温度                         |
-| {{Onset}}   | Onset 温度                              | **自动**：对应 `Onset: ... °C`                    | 若模板中有多余字符（如 `{{Onset}}t`），建议改模板    |
-| {{Peak}}    | 峰温 / Peak temperature                 | **自动**：对应 `Peak: ... °C`                     | 例如 21.5°C, 34.3°C, 44.3°C 等                       |
-| {{End}}     | 结束温度 / End temperature              | **自动**：可来自该峰对应的 Range(max) / 结束点    | 若 txt 没有明确 End，可用事件范围或自行定义规则     |
-| {{- Area}}  | 峰面积/焓变 ΔH (J/g)                    | **自动**：对应 `Area ... J/g`                     | 包含正负号；负值一般为 endothermic，正值为 exothermic；模板名里带 `-`，代码替换时需用原样 `{{- Area}}` |
+#### Key Implementation Decisions
 
+- Introduced typed models to represent parsed DSC results (improves maintainability and validation).
+- Separated parsing, text generation, and templating to minimize coupling and simplify testing.
+- Used templates in data/ to ensure report layout remains consistent while content is automated.
 
+#### Constraints / Challenges
 
+- Instrument output text can vary across methods/runs; required resilient parsing and edge-case handling.- Word placeholder replacement can be affected by run splitting and formatting, requiring careful replacement logic.
+- Managing repository hygiene (excluding sample data, temporary Word files like ~$*, and virtual environments).
+
+#### Skills Applied / Developed
+
+- Python engineering (modular design, typed modeling, parsing)
+- Document automation (Word templating, structured text generation)
+- QA mindset (basic unit tests under src/test, reproducible sample inputs)
+
+### Outcome
+
+- **Current Status:** Working prototype that parses DSC TXT outputs and generates a structured Word report using templates; includes sample input assets for validation and a test scaffold for parsing segments.
+- **Feedback / Validation:** Verified generation correctness by running against sample datasets and ensuring report fields populate as expected; issues captured and tracked in problems.md.
+- **Impact:** Reduces reporting time, standardizes report formatting, and decreases the risk of missing key thermal parameters due to manual transcription.
+
+### Reflection
+
+- **What I Learned:** Small variations in input formatting and document templating behaviors can cause disproportionate errors; robust parsing and validation are as important as core functionality.
+- **What I Would Improve Next:**
+  
+  - Add stronger validation and clearer user-facing error messages (e.g., missing fields, parsing failures).
+  - Make parsing rules configurable per instrument method/output format.
+  - Improve PDF/image insertion sizing and layout control in generated reports.
+  - Add CI to run tests automatically and enforce code quality gates.
+  
