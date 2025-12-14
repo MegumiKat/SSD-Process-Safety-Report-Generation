@@ -1,0 +1,20 @@
+# Folders to ignore
+/data/
+/venv/
+/.venv/
+/CF130G/
+
+# Python common
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtualenv metadata
+*.egg-info/
+.eggs/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
