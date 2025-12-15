@@ -1,0 +1,186 @@
+/* ===== 全局基础 ===== */
+QWidget {
+    background-color: #1f1f1f;   /* 深色背景，接近 macOS Dark */
+    color: #f5f5f5;             /* 默认文字颜色 */
+    font-size: 16pt;
+}
+
+/* 主窗口（可选） */
+QMainWindow {
+    background-color: #1f1f1f;
+    
+}
+
+/* 标题、说明文字 */
+QLabel {
+    color: #f5f5f5;
+}
+
+/* 只给主标题用的大号字：objectName = "AppTitle" */
+QLabel#AppTitle {
+    font-size: 22px;
+    font-weight: bold;
+    color:rgba(255, 136, 0, 0.943)
+}
+
+/* 分组标题等可以稍微淡一点 */
+QLabel[objectName="sectionTitle"],
+QLabel[objectName="subtitle"] {
+    color: #d0d0d0;
+    font-weight: bold;
+}
+
+/* ===== 输入框：QLineEdit / QTextEdit ===== */
+QLineEdit, QTextEdit {
+    background-color: #2b2b2b;
+    color: #f5f5f5;
+    border: 1px solid #3b3b3b;
+    border-radius: 6px;
+    padding: 3px 6px;
+    selection-background-color: #3a84ff;  /* macOS 蓝色高亮 */
+    selection-color: #ffffff;
+}
+
+QLineEdit:disabled,
+QTextEdit:disabled {
+    color: #888888;
+    background-color: #2a2a2a;
+    border: 1px solid #333333;
+}
+
+/* 聚焦时边框高亮 */
+QLineEdit:focus,
+QTextEdit:focus {
+    border: 1px solid #3a84ff;
+}
+
+/* ===== 按钮 ===== */
+QPushButton {
+    background-color: #333333;
+    color: #ffffff;
+    border-radius: 6px;
+    border: 1px solid #4a4a4a;
+    padding: 5px 12px;
+}
+
+QPushButton:hover {
+    background-color: #3b3b3b;
+    border: 1px solid #5a5a5a;
+}
+
+QPushButton:pressed {
+    background-color: #2a2a2a;
+    border: 1px solid #3a84ff;
+}
+
+QPushButton:disabled {
+    background-color: #2a2a2a;
+    color: #777777;
+    border: 1px solid #333333;
+}
+
+/* 主动作按钮（如果你给某些按钮单独起 objectName，比如 btn_generate） */
+QPushButton#btn_generate {
+    background-color: #3a84ff;
+    border: 1px solid #3a84ff;
+    color: #ffffff;
+}
+
+QPushButton#btn_generate:hover {
+    background-color: #4a8fff;
+}
+
+QPushButton#btn_generate:pressed {
+    background-color: #2f6fd6;
+}
+
+/* ===== 滚动区域 / 滚动条 ===== */
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background: #1f1f1f;
+    width: 10px;
+    margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: #444444;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: #5b5b5b;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical {
+    height: 0;
+}
+
+QScrollBar:horizontal {
+    background: #1f1f1f;
+    height: 10px;
+}
+
+QScrollBar::handle:horizontal {
+    background: #444444;
+    border-radius: 5px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: #5b5b5b;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+}
+
+/* ===== GroupBox / Frame 等容器 ===== */
+QGroupBox {
+    border: 1px solid #3b3b3b;
+    border-radius: 8px;
+    margin-top: 8px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    color: #d0d0d0;
+}
+
+/* 分割线：用于你顶部 header 下方那条线 */
+QFrame[frameShape="4"] {  /* 4 = QFrame::HLine */
+    border: none;
+    border-top: 1px dashed #555555;
+}
+
+/* ===== 表格（如果后面要用） ===== */
+QTableView {
+    background-color: #222222;
+    color: #f5f5f5;
+    gridline-color: #3b3b3b;
+    border: 1px solid #3b3b3b;
+    selection-background-color: #3a84ff;
+    selection-color: #ffffff;
+}
+
+QHeaderView::section {
+    background-color: #2f2f2f;
+    color: #f5f5f5;
+    padding: 4px;
+    border: 1px solid #3b3b3b;
+}
+
+/* ===== MessageBox 按钮/文字略微统一一下风格 ===== */
+QMessageBox {
+    background-color: #1f1f1f;
+}
+
+QMessageBox QLabel {
+    color: #f5f5f5;
+}

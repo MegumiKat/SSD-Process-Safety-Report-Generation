@@ -6,14 +6,15 @@ from typing import Optional, List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
-    QMessageBox, QScrollArea, QSizePolicy
+    QMessageBox, QScrollArea, QSizePolicy, QFrame
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextCursor
+from PyQt6.QtGui import QTextCursor, QPixmap
+from pathlib import Path
 
-from src.config.config import DEFAULT_TEMPLATE_PATH
+from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
 from src.utils.parser_dsc import parse_dsc_txt_basic, parse_dsc_segments
-from src.models.models import DscBasicInfo
+from src.models.models import DscBasicInfo, DscSegment
 from src.utils.templating import fill_template_with_mapping
 from src.utils.dsc_text import generate_dsc_summary
 
@@ -31,6 +32,8 @@ class MainWindow(QMainWindow):
         self.template_path: str = DEFAULT_TEMPLATE_PATH
         self.output_path: str = ""
         self.parsed_info: Optional[DscBasicInfo] = None
+        self.parsed_segments: Optional[List[DscSegment]] = None
+        self.segment_widgets: list[dict] = []
         self.confirmed: bool = False  # 是否点击过“确认数据”
 
         # 日志内部结构：文件日志 / 当前确认块 / 历史生成块
@@ -38,14 +41,79 @@ class MainWindow(QMainWindow):
         self.confirm_block: Optional[str] = None  # 纯文本字符串（多行）
         self.generate_logs: List[str] = []   # html 字符串（每块可能多行）
 
-        # ==== 总体布局：左右分栏 ====
+        # ==== 总体布局：顶部 Header（Logo + 程序名） + 下方左右分栏 ====
         central = QWidget()
-        main_layout = QHBoxLayout(central)
+        # central.setStyleSheet("background-color: #bbbbbb;")  # 换成你想要的颜色
+        root_layout = QVBoxLayout(central)
         self.setCentralWidget(central)
+
+        # 通用分割线：orientation = "h" 或 "v"
+        def _create_separator(
+            orientation: str = "h",
+            thickness: int = 2,
+            color: str = "#f5f5f5",
+            dashed: bool = True,
+        ) -> QFrame:
+            line = QFrame()
+            if orientation == "h":
+                line.setFrameShape(QFrame.Shape.HLine)
+                # 水平线用 top 边
+                style_prop = "border-top"
+            else:
+                line.setFrameShape(QFrame.Shape.VLine)
+                # 垂直线用 left 边
+                style_prop = "border-left"
+
+            line.setFrameShadow(QFrame.Shadow.Plain)
+
+            border_style = "dashed" if dashed else "solid"
+            line.setStyleSheet(
+                f"QFrame {{ border: none; {style_prop}: {thickness}px {border_style} {color}; }}"
+            )
+            return line
+
+        # ---------- 顶部：公司 Logo + 程序标题 ----------
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(8, 8, 8, 8)
+
+        # 左侧：Logo
+        logo_label = QLabel()
+        if os.path.exists(LOGO_PATH):
+            pixmap = QPixmap(str(LOGO_PATH))
+            if not pixmap.isNull():
+                target_height= 80
+                # 控制 logo 高度，比如 40 像素，等比缩放
+                logo_label.setPixmap(
+                    pixmap.scaledToHeight(
+                        target_height,
+                        Qt.TransformationMode.SmoothTransformation
+                    )
+                )
+        # 给一点固定高度，即使没图也不至于崩版
+        logo_label.setMinimumHeight(target_height)
+        logo_label.setMaximumHeight(target_height + 10) 
+        header_layout.addWidget(logo_label)
+
+        # 右侧：程序标题
+        title_label = QLabel("DSC Reports Generation Tool")
+        title_label.setObjectName("AppTitle")
+        header_layout.addWidget(title_label)
+        header_layout.addStretch(1)
+
+        root_layout.addWidget(header_widget)
+
+        # ---------- 分割线（虚线） ----------
+        root_layout.addWidget(_create_separator("h"))
+
+        # ---------- 中间主体：左右分栏 ----------
+        main_layout = QHBoxLayout()
+        root_layout.addLayout(main_layout, stretch=1)
 
         left_layout = QVBoxLayout()   # 文件 + 手动输入
         right_layout = QVBoxLayout()  # 自动识别 + 日志
         main_layout.addLayout(left_layout, 3)
+        main_layout.addWidget(_create_separator("v"))
         main_layout.addLayout(right_layout, 2)
 
         # ---------- 左侧：文件选择区域 ----------
@@ -64,7 +132,6 @@ class MainWindow(QMainWindow):
         btn_txt = QPushButton("Choose TXT")
         btn_txt.clicked.connect(self.choose_txt)
         lbl_txt = QLabel("DSC Result txt:")
-        lbl_txt.setStyleSheet("color: #bbbbbb;")
         h_txt.addWidget(lbl_txt)
         h_txt.addWidget(self.edit_txt)
         h_txt.addWidget(btn_txt)
@@ -76,7 +143,6 @@ class MainWindow(QMainWindow):
         btn_pdf = QPushButton("Choose PDF")
         btn_pdf.clicked.connect(self.choose_pdf)
         lbl_pdf = QLabel("Curve Graph:")
-        lbl_pdf.setStyleSheet("color: #bbbbbb;")
         h_pdf.addWidget(lbl_pdf)
         h_pdf.addWidget(self.edit_pdf)
         h_pdf.addWidget(btn_pdf)
@@ -88,7 +154,6 @@ class MainWindow(QMainWindow):
         btn_out = QPushButton("Choose Output Path")
         btn_out.clicked.connect(self.choose_output)
         lbl_out = QLabel("Output Report")
-        lbl_out.setStyleSheet("color: #bbbbbb;")
         h_out.addWidget(lbl_out)
         h_out.addWidget(self.edit_output)
         h_out.addWidget(btn_out)
@@ -97,9 +162,7 @@ class MainWindow(QMainWindow):
         # 4. 模板路径显示（默认，只显示文件名）
         h_tpl = QHBoxLayout()
         self.label_tpl = QLabel(os.path.basename(self.template_path))
-        self.label_tpl.setStyleSheet("color: #bbbbbb;")
         lbl_tpl = QLabel("Current Template:")
-        lbl_tpl.setStyleSheet("color: #bbbbbb;")
         h_tpl.addWidget(lbl_tpl)
         h_tpl.addWidget(self.label_tpl)
         file_layout.addLayout(h_tpl)
@@ -116,6 +179,8 @@ class MainWindow(QMainWindow):
         h_buttons.addWidget(self.btn_generate)
         left_layout.addLayout(h_buttons)
 
+        left_layout.addWidget(_create_separator("h"))
+
         # ---------- 左侧：手动输入区域（黄色部分） ----------
         scroll_manual = QScrollArea()
         scroll_manual.setWidgetResizable(True)
@@ -130,7 +195,6 @@ class MainWindow(QMainWindow):
 
         def _add_form_row(form: QFormLayout, text: str, widget: QLineEdit):
             label = QLabel(text)
-            label.setStyleSheet("color: #bbbbbb;")
             form.addRow(label, widget)
 
         # 这些字段对应模板里的 {{占位符}}
@@ -180,7 +244,10 @@ class MainWindow(QMainWindow):
         auto_scroll = QScrollArea()
         auto_scroll.setWidgetResizable(True)
         auto_container = QWidget()
-        auto_form = QFormLayout(auto_container)
+        # 外层垂直布局：上半部分是原来的自动字段，下半部分放 segments
+        auto_vbox = QVBoxLayout(auto_container)
+        auto_form = QFormLayout()
+        auto_vbox.addLayout(auto_form)
 
         def _new_auto_input() -> QLineEdit:
             e = QLineEdit()
@@ -198,7 +265,6 @@ class MainWindow(QMainWindow):
         self.auto_end_date = _new_auto_input()
 
         title_auto = QLabel("Automatically identified fields:")
-        title_auto.setStyleSheet("color: #bbbbbb;")
         auto_form.addRow(title_auto)
 
         _add_form_row(auto_form, "Sample Name:", self.auto_sample_name)
@@ -210,13 +276,22 @@ class MainWindow(QMainWindow):
         _add_form_row(auto_form, "Temp.Calib.:", self.auto_temp_calib)
         _add_form_row(auto_form, "End Date:", self.auto_end_date)
 
+        # ===== 新增：Segments 自动识别区域 =====
+        seg_title = QLabel("Segments:")
+        auto_vbox.addWidget(seg_title)
+
+        # 这个 layout 里后面会动态塞每个 segment 的行
+        self.segment_area_layout = QVBoxLayout()
+        auto_vbox.addLayout(self.segment_area_layout)
+
         auto_scroll.setWidget(auto_container)
         right_layout.addWidget(auto_scroll, stretch=1)
+
+        right_layout.addWidget(_create_separator("h"))
 
         # ---------- 右侧：日志 + 清空按钮 ----------
         log_header_layout = QHBoxLayout()
         lbl_log = QLabel("Log:")
-        lbl_log.setStyleSheet("color: #bbbbbb;")
         log_header_layout.addWidget(lbl_log)
         btn_clear_log = QPushButton("Clear")
         btn_clear_log.setFixedWidth(60)
@@ -260,6 +335,135 @@ class MainWindow(QMainWindow):
         self.file_logs.append(html_msg)
         self.render_log()
 
+
+    def _clear_layout(self, layout):
+        """递归清空一个 layout 里的所有控件和子布局。"""
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            child_layout = item.layout()
+            if w is not None:
+                w.deleteLater()
+            elif child_layout is not None:
+                self._clear_layout(child_layout)
+
+    def _build_segments_auto_fields(self, segments: List[DscSegment]):
+        """根据 segments 动态生成右侧可编辑的行。"""
+        self._clear_layout(self.segment_area_layout)
+        self.segment_widgets.clear()
+
+        if not segments:
+            label = QLabel("未识别到有效的 segment。")
+            self.segment_area_layout.addWidget(label)
+            return
+
+        # 顶部显示段数
+        count_label = QLabel(f"共 {len(segments)} 段")
+        self.segment_area_layout.addWidget(count_label)
+
+        # 每个 segment 一个小块
+        for si, seg in enumerate(segments, start=1):
+            seg_box = QWidget()
+            seg_box_layout = QVBoxLayout(seg_box)
+            seg_box_layout.setContentsMargins(0, 4, 0, 4)
+
+            seg_header = QLabel(f"Segment {si}: {seg.desc_display}")
+            seg_header.setStyleSheet("font-weight:bold;")
+            seg_box_layout.addWidget(seg_header)
+
+            # 每个 part 一行（Value / Onset / Peak / Area / Comment）
+            for pi, part in enumerate(seg.parts, start=1):
+                row_widget = QWidget()
+                row_layout = QHBoxLayout(row_widget)
+                row_layout.setContentsMargins(0, 0, 0, 0)
+
+                # 小工具函数：创建带占位提示的输入框
+                def _make_edit(placeholder: str, text: str = "") -> QLineEdit:
+                    e = QLineEdit()
+                    e.setPlaceholderText(placeholder)
+                    e.setText(text)
+                    e.setMinimumWidth(70)
+                    e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                    return e
+
+                value_edit = _make_edit(
+                    "Value(°C)",
+                    "" if part.value_temp_c is None else f"{part.value_temp_c:.1f}",
+                )
+                onset_edit = _make_edit(
+                    "Onset(°C)",
+                    "" if part.onset_c is None else f"{part.onset_c:.1f}",
+                )
+                peak_edit = _make_edit(
+                    "Peak(°C)",
+                    "" if part.peak_c is None else f"{part.peak_c:.1f}",
+                )
+                area_edit = _make_edit(
+                    "Area",
+                    "" if part.area_report is None else f"{part.area_report:.3f}",
+                )
+                comment_edit = _make_edit(
+                    "Comment",
+                    part.comment or "",
+                )
+
+                # 布局里按顺序加上去
+                row_layout.addWidget(QLabel(f"Part {pi}:"))
+                row_layout.addWidget(value_edit)
+                row_layout.addWidget(onset_edit)
+                row_layout.addWidget(peak_edit)
+                row_layout.addWidget(area_edit)
+                row_layout.addWidget(comment_edit)
+
+                seg_box_layout.addWidget(row_widget)
+
+                # 记录这些控件，对应到原始数据的 index
+                self.segment_widgets.append(
+                    {
+                        "seg_index": si - 1,
+                        "part_index": pi - 1,
+                        "value_edit": value_edit,
+                        "onset_edit": onset_edit,
+                        "peak_edit": peak_edit,
+                        "area_edit": area_edit,
+                        "comment_edit": comment_edit,
+                    }
+                )
+
+            self.segment_area_layout.addWidget(seg_box)
+
+    def _apply_segment_edits(self):
+        """把右侧 segments 编辑区域中的修改写回 self.parsed_segments。"""
+        if not self.parsed_segments:
+            return
+
+        def _to_float(text: str) -> Optional[float]:
+            t = text.strip()
+            if not t:
+                return None
+            try:
+                return float(t)
+            except ValueError:
+                return None
+
+        for item in self.segment_widgets:
+            si = item["seg_index"]
+            pi = item["part_index"]
+            if si >= len(self.parsed_segments):
+                continue
+            seg = self.parsed_segments[si]
+            if pi >= len(seg.parts):
+                continue
+            part = seg.parts[pi]
+
+            part.value_temp_c = _to_float(item["value_edit"].text())
+            part.onset_c = _to_float(item["onset_edit"].text())
+            part.peak_c = _to_float(item["peak_edit"].text())
+            part.area_report = _to_float(item["area_edit"].text())
+            comment = item["comment_edit"].text().strip()
+            part.comment = comment or ""
+
+
     # ====== 自动解析 txt 并填充右侧 ======
     def _parse_txt_and_fill(self):
         if not self.txt_path:
@@ -268,6 +472,15 @@ class MainWindow(QMainWindow):
         try:
             self.parsed_info = parse_dsc_txt_basic(self.txt_path)
             info = self.parsed_info
+
+
+            # 2. Segments
+            try:
+                self.parsed_segments = parse_dsc_segments(self.txt_path)
+            except Exception as e_seg:
+                self.parsed_segments = []
+                msg_seg = f'<span style="color:#ff5555;">[Segments Parsed Failed]</span> {os.path.basename(self.txt_path)} - {e_seg}'
+                self._add_file_log(msg_seg)
 
             # 填充右侧自动识别字段（可修改）
             self.auto_sample_name.setText(info.sample_name or "")
@@ -281,6 +494,9 @@ class MainWindow(QMainWindow):
             self.auto_crucible.setText(info.crucible or "")
             self.auto_temp_calib.setText(info.temp_calib or "")
             self.auto_end_date.setText(info.end_date or "")
+
+            # 3. 构建 segments 编辑区域
+            self._build_segments_auto_fields(self.parsed_segments or [])
 
             self.confirmed = False
             self.confirm_block = None  # 重新确认前清空确认块
@@ -429,12 +645,15 @@ class MainWindow(QMainWindow):
         mapping["{{Temp.Calib}}"] = self.auto_temp_calib.text().strip()
         mapping["{{End_Date}}"] = self.auto_end_date.text().strip()
 
-        try:
-            segments = parse_dsc_segments(self.txt_path)
-        except Exception as e:
-            segments = []
+        # 在生成前，把 UI 中对 segments 的修改写回对象
+        self._apply_segment_edits()
+
+        # 优先使用已经解析好的 segments
+        segments = self.parsed_segments or []
+        if not segments:
             block = (
-                f'<span style="color:#ff5555;">[Segments Parsed Failed]</span> {e}<br>'
+                '<span style="color:#ff5555;">[Segments 为空]</span> '
+                '将不生成 segments 表格。<br>'
             )
             self.generate_logs.append(block)
             self.render_log()
@@ -485,12 +704,16 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
 
-        # ① 取当前默认字体
-    font = app.font()
-    # ② 放大一点，比如在原来的基础上 +2 号
-    font.setPointSize(font.pointSize() + 4)
-    # ③ 设置为整个应用的默认字体
-    app.setFont(font)
+    
+    # ===== 加载 QSS 样式 (mac 深色主题) =====
+    # ui_main.py 在 src/ui 下，parents[1] 就是 src 目录
+    base_dir = Path(__file__).resolve().parents[1]  # .../src
+    qss_path = base_dir / "assets" / "app.qss"
+    if qss_path.exists():
+        with open(qss_path, "r", encoding="utf-8") as f:
+            app.setStyleSheet(f.read())
+    else:
+        print(f"[Warning] QSS file not found: {qss_path}")
 
     win = MainWindow()
     win.show()

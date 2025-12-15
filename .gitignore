@@ -3,6 +3,7 @@
 /venv/
 /.venv/
 /CF130G/
+/M_samples/
 
 # Python common
 __pycache__/

@@ -27,7 +27,7 @@ def parse_dsc_txt_basic(txt_path: str) -> DscBasicInfo:
     info = DscBasicInfo()
 
     # Sample identity / Sample name
-    m = re.search(r"Sample identity:\s*(.+)", text)
+    m = re.search(r"Sample name:\s*(.+)", text)
     if m:
         info.sample_name = m.group(1).strip()
 
