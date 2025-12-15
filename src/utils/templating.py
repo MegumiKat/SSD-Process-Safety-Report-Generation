@@ -183,7 +183,7 @@ def _insert_dsc_figure_after_discussion(
         try:
             doc_pdf = fitz.open(pdf_path)
             page = doc_pdf.load_page(0)           # 第 0 页（第一页）
-            pix = page.get_pixmap(dpi=200)        # 分辨率你可以调高或调低
+            pix = page.get_pixmap(dpi=250)        # 分辨率你可以调高或调低
             tmp_dir = tempfile.gettempdir()
             image_path = os.path.join(tmp_dir, "dsc_curve_tmp.png")
             pix.save(image_path)
@@ -205,16 +205,24 @@ def _insert_dsc_figure_after_discussion(
         parent = doc.paragraphs[-1]._p.getparent()
         idx = len(parent)
 
+    # 计算“页面内容区”的最大宽度
+    section = doc.sections[0]
+    max_width = section.page_width - section.left_margin - section.right_margin
+    # 如果觉得太宽，可以打一折，比如 90%
+    max_width = int(max_width * 0.9)
+
     # 插入图片段落（居中）
     fig_para = doc.add_paragraph()
     fig_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = fig_para.add_run()
-    run.add_picture(image_path, width=Inches(4.5))  # 宽度你可以自己调
+
+    # 关键：用 page_width - margin 作为 width，不再写死 Inches(4.5)
+    run.add_picture(image_path, width=max_width)
 
     parent.insert(idx, fig_para._p)
     idx += 1
 
-    # 插入图注段落（左对齐）
+    # 插入图注段落（居中）
     caption_text = f"Figure {figure_number}. DSC test curve of {sample_name}"
     cap_para = doc.add_paragraph(caption_text)
     cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER

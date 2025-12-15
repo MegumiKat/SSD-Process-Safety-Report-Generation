@@ -22,10 +22,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("DSC 报告生成工具（模板 + txt + pdf）")
+        self.setWindowTitle("DSC Reports Generation Tool (template + txt + pdf)")
         self.resize(1100, 650)
 
-        # ==== 状态 ====
+        # ==== status ====
         self.txt_path: str = ""
         self.pdf_path: str = ""
         self.template_path: str = DEFAULT_TEMPLATE_PATH
@@ -61,9 +61,9 @@ class MainWindow(QMainWindow):
         # 1. txt
         h_txt = QHBoxLayout()
         self.edit_txt = _new_path_edit()
-        btn_txt = QPushButton("选择 txt 文件")
+        btn_txt = QPushButton("Choose TXT")
         btn_txt.clicked.connect(self.choose_txt)
-        lbl_txt = QLabel("DSC 结果 txt：")
+        lbl_txt = QLabel("DSC Result txt:")
         lbl_txt.setStyleSheet("color: #bbbbbb;")
         h_txt.addWidget(lbl_txt)
         h_txt.addWidget(self.edit_txt)
@@ -73,9 +73,9 @@ class MainWindow(QMainWindow):
         # 2. pdf
         h_pdf = QHBoxLayout()
         self.edit_pdf = _new_path_edit()
-        btn_pdf = QPushButton("选择 pdf 文件")
+        btn_pdf = QPushButton("Choose PDF")
         btn_pdf.clicked.connect(self.choose_pdf)
-        lbl_pdf = QLabel("曲线图 pdf：")
+        lbl_pdf = QLabel("Curve Graph:")
         lbl_pdf.setStyleSheet("color: #bbbbbb;")
         h_pdf.addWidget(lbl_pdf)
         h_pdf.addWidget(self.edit_pdf)
@@ -85,9 +85,9 @@ class MainWindow(QMainWindow):
         # 3. 输出文件
         h_out = QHBoxLayout()
         self.edit_output = _new_path_edit()
-        btn_out = QPushButton("选择输出 Word 文件")
+        btn_out = QPushButton("Choose Output Path")
         btn_out.clicked.connect(self.choose_output)
-        lbl_out = QLabel("输出报告：")
+        lbl_out = QLabel("Output Report")
         lbl_out.setStyleSheet("color: #bbbbbb;")
         h_out.addWidget(lbl_out)
         h_out.addWidget(self.edit_output)
@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
         h_tpl = QHBoxLayout()
         self.label_tpl = QLabel(os.path.basename(self.template_path))
         self.label_tpl.setStyleSheet("color: #bbbbbb;")
-        lbl_tpl = QLabel("当前模板：")
+        lbl_tpl = QLabel("Current Template:")
         lbl_tpl.setStyleSheet("color: #bbbbbb;")
         h_tpl.addWidget(lbl_tpl)
         h_tpl.addWidget(self.label_tpl)
@@ -108,9 +108,9 @@ class MainWindow(QMainWindow):
 
         # ---------- 左侧：操作按钮 ----------
         h_buttons = QHBoxLayout()
-        self.btn_confirm = QPushButton("确认数据")
+        self.btn_confirm = QPushButton("Confirm Data")
         self.btn_confirm.clicked.connect(self.on_confirm)
-        self.btn_generate = QPushButton("生成报告")
+        self.btn_generate = QPushButton("Generate Report")
         self.btn_generate.clicked.connect(self.on_generate)
         h_buttons.addWidget(self.btn_confirm)
         h_buttons.addWidget(self.btn_generate)
@@ -155,24 +155,23 @@ class MainWindow(QMainWindow):
 
         self.input_lsmp_code.setText("LSMP-21 F01v04")
 
-        _add_form_row(self.form_layout, "{{LSMP_code}}（页眉绿色编号）：", self.input_lsmp_code)
-        _add_form_row(self.form_layout, "{{Request_id}}：", self.input_request_id)
-        _add_form_row(self.form_layout, "{{Customer_information}}：", self.input_customer)
-        _add_form_row(self.form_layout, "{{Request_Name}}：", self.input_request_name)
-        _add_form_row(self.form_layout, "{{Submission_Date}}：", self.input_submission_date)
-        _add_form_row(self.form_layout, "{{Request_Number}}：", self.input_request_number)
-        _add_form_row(self.form_layout, "{{Project_Account}}：", self.input_project_account)
-        _add_form_row(self.form_layout, "{{Deadline}}：", self.input_deadline)
+        _add_form_row(self.form_layout, "Test Code:", self.input_lsmp_code)
+        _add_form_row(self.form_layout, "Request Id:", self.input_request_id)
+        _add_form_row(self.form_layout, "Customer Information:", self.input_customer)
+        _add_form_row(self.form_layout, "Request Name:", self.input_request_name)
+        _add_form_row(self.form_layout, "Submission Date:", self.input_submission_date)
+        _add_form_row(self.form_layout, "Request Number:", self.input_request_number)
+        _add_form_row(self.form_layout, "Project Account:", self.input_project_account)
+        _add_form_row(self.form_layout, "Deadline:", self.input_deadline)
 
-        _add_form_row(self.form_layout, "{{Sample_id}}：", self.input_sample_id)
-        _add_form_row(self.form_layout, "{{Nature}}：", self.input_nature)
-        _add_form_row(self.form_layout, "{{Assign_to}}：", self.input_assign_to)
-        _add_form_row(self.form_layout, "{{Test_Date}}（实验日期）：", self.input_test_date)
-
-        _add_form_row(self.form_layout, "{{Receive_Date}}：", self.input_receive_date)
-        _add_form_row(self.form_layout, "{{Report_Date}}：", self.input_report_date)
-
-        _add_form_row(self.form_layout, "{{Request_desc}}（检测申请描述）：", self.input_request_desc)
+        _add_form_row(self.form_layout, "Request Description:", self.input_request_desc)
+        _add_form_row(self.form_layout, "Sample_id:", self.input_sample_id)
+        _add_form_row(self.form_layout, "Nature:", self.input_nature)
+        _add_form_row(self.form_layout, "Assign To:", self.input_assign_to)
+        
+        _add_form_row(self.form_layout, "Receive Date:", self.input_receive_date)
+        _add_form_row(self.form_layout, "Test Date:", self.input_test_date)
+        _add_form_row(self.form_layout, "Report Date:", self.input_report_date)
 
         scroll_manual.setWidget(form_container)
         left_layout.addWidget(scroll_manual, stretch=1)
@@ -198,28 +197,28 @@ class MainWindow(QMainWindow):
         self.auto_temp_calib = _new_auto_input()
         self.auto_end_date = _new_auto_input()
 
-        title_auto = QLabel("自动识别字段（可修改）：")
+        title_auto = QLabel("Automatically identified fields:")
         title_auto.setStyleSheet("color: #bbbbbb;")
         auto_form.addRow(title_auto)
 
-        _add_form_row(auto_form, "Sample_name：", self.auto_sample_name)
-        _add_form_row(auto_form, "Sample_mass：", self.auto_sample_mass)
-        _add_form_row(auto_form, "Operator：", self.auto_operator)
-        _add_form_row(auto_form, "Instrument：", self.auto_instrument)
-        _add_form_row(auto_form, "Atmosphere：", self.auto_atmosphere)
-        _add_form_row(auto_form, "Crucible：", self.auto_crucible)
-        _add_form_row(auto_form, "Temp.Calib.：", self.auto_temp_calib)
-        _add_form_row(auto_form, "End_Date（完成日期）：", self.auto_end_date)
+        _add_form_row(auto_form, "Sample Name:", self.auto_sample_name)
+        _add_form_row(auto_form, "Sample Mass:", self.auto_sample_mass)
+        _add_form_row(auto_form, "Operator:", self.auto_operator)
+        _add_form_row(auto_form, "Instrument:", self.auto_instrument)
+        _add_form_row(auto_form, "Atmosphere:", self.auto_atmosphere)
+        _add_form_row(auto_form, "Crucible:", self.auto_crucible)
+        _add_form_row(auto_form, "Temp.Calib.:", self.auto_temp_calib)
+        _add_form_row(auto_form, "End Date:", self.auto_end_date)
 
         auto_scroll.setWidget(auto_container)
         right_layout.addWidget(auto_scroll, stretch=1)
 
         # ---------- 右侧：日志 + 清空按钮 ----------
         log_header_layout = QHBoxLayout()
-        lbl_log = QLabel("日志：")
+        lbl_log = QLabel("Log:")
         lbl_log.setStyleSheet("color: #bbbbbb;")
         log_header_layout.addWidget(lbl_log)
-        btn_clear_log = QPushButton("清空")
+        btn_clear_log = QPushButton("Clear")
         btn_clear_log.setFixedWidth(60)
         btn_clear_log.clicked.connect(self.clear_log)
         log_header_layout.addWidget(btn_clear_log)
@@ -234,8 +233,8 @@ class MainWindow(QMainWindow):
         if not os.path.exists(self.template_path):
             QMessageBox.warning(
                 self,
-                "提示",
-                f"找不到默认模板文件：\n{self.template_path}\n请检查 data 目录或修改 config.DEFAULT_TEMPLATE_PATH。"
+                "Warning",
+                f"Can't find the template:\n{self.template_path}\nPlease Check \data or modify config.DEFAULT_TEMPLATE_PATH。"
             )
 
     # ====== 日志渲染 ======
@@ -286,19 +285,19 @@ class MainWindow(QMainWindow):
             self.confirmed = False
             self.confirm_block = None  # 重新确认前清空确认块
 
-            msg = f'<span style="color:#33cc33;">[解析成功]</span> {os.path.basename(self.txt_path)}'
+            msg = f'<span style="color:#33cc33;">[Parsing Successful]</span> {os.path.basename(self.txt_path)}'
             self._add_file_log(msg)
 
         except Exception as e:
             self.parsed_info = None
-            msg = f'<span style="color:#ff5555;">[解析失败]</span> {os.path.basename(self.txt_path)} - {e}'
+            msg = f'<span style="color:#ff5555;">[Parsing Failed]</span> {os.path.basename(self.txt_path)} - {e}'
             self._add_file_log(msg)
-            QMessageBox.critical(self, "错误", f"解析 txt 失败：\n{e}")
+            QMessageBox.critical(self, "Error", f"[TXT]Parsing Failed\n{e}")
 
     # ====== 文件选择 ======
     def choose_txt(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择 DSC txt 文件", "", "Text Files (*.txt);;All Files (*)"
+            self, "Choose TXT", "", "Text Files (*.txt);;All Files (*)"
         )
         if path:
             self.txt_path = path
@@ -307,92 +306,94 @@ class MainWindow(QMainWindow):
 
     def choose_pdf(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择曲线 pdf 文件", "", "PDF Files (*.pdf);;All Files (*)"
+            self, "Choose PDF", "", "PDF Files (*.pdf);;All Files (*)"
         )
         if path:
             self.pdf_path = path
             self.edit_pdf.setText(os.path.basename(path))
-            msg = f'<span style="color:#33cc33;">[选择成功]</span> {os.path.basename(self.pdf_path)}'
+            msg = f'<span style="color:#33cc33;">[Choosing Successful]</span> {os.path.basename(self.pdf_path)}'
             self._add_file_log(msg)
 
     def choose_output(self):
         path, _ = QFileDialog.getSaveFileName(
-            self, "选择输出 Word 文件", "", "Word 文件 (*.docx)"
+            self, "Choose Output WORD", "", "Word file (*.docx)"
         )
         if path:
             if not path.lower().endswith(".docx"):
                 path += ".docx"
             self.output_path = path
             self.edit_output.setText(os.path.basename(path))
-            msg = f'<span style="color:#33cc33;">[选择成功]</span> 输出文件 {os.path.basename(self.output_path)}'
+            msg = f'<span style="color:#33cc33;">[Choosing Successful]</span> Output: {os.path.basename(self.output_path)}'
             self._add_file_log(msg)
 
     # ====== 确认数据：覆盖当前确认块 ======
     def on_confirm(self):
         if not self.txt_path:
-            QMessageBox.warning(self, "提示", "请先选择 txt 文件。")
+            QMessageBox.warning(self, "Tips", "Please choose TXT")
             return
 
         if self.parsed_info is None:
-            QMessageBox.warning(self, "提示", "txt 尚未成功解析。")
+            QMessageBox.warning(self, "Tips", "[TXT]Haven't parsed successful")
             return
 
         lines = []
         lines.append("")
-        lines.append("===== 自动识别字段（最终值） =====")
-        lines.append(f"Sample_name: {self.auto_sample_name.text().strip()}")
-        lines.append(f"Sample_mass: {self.auto_sample_mass.text().strip()}")
+        lines.append("===== Automatically identify fields (final value) =====")
+        lines.append("")
+        lines.append(f"Sample Name: {self.auto_sample_name.text().strip()}")
+        lines.append(f"Sample Mass: {self.auto_sample_mass.text().strip()}")
         lines.append(f"Operator: {self.auto_operator.text().strip()}")
         lines.append(f"Instrument: {self.auto_instrument.text().strip()}")
         lines.append(f"Atmosphere: {self.auto_atmosphere.text().strip()}")
         lines.append(f"Crucible: {self.auto_crucible.text().strip()}")
         lines.append(f"Temp.Calib.: {self.auto_temp_calib.text().strip()}")
-        lines.append(f"End_Date: {self.auto_end_date.text().strip()}")
+        lines.append(f"End Date: {self.auto_end_date.text().strip()}")
         lines.append("")
 
-        lines.append("===== 手动输入（模板黄色部分） =====")
-        lines.append(f"LSMP_code: {self.input_lsmp_code.text().strip()}")
-        lines.append(f"Request_id: {self.input_request_id.text().strip()}")
-        lines.append(f"Customer_information: {self.input_customer.text().strip()}")
-        lines.append(f"Request_Name: {self.input_request_name.text().strip()}")
-        lines.append(f"Submission_Date: {self.input_submission_date.text().strip()}")
-        lines.append(f"Request_Number: {self.input_request_number.text().strip()}")
-        lines.append(f"Project_Account: {self.input_project_account.text().strip()}")
+        lines.append("===== Manual input =====")
+        lines.append("")
+        lines.append(f"Test Code: {self.input_lsmp_code.text().strip()}")
+        lines.append(f"Request Id: {self.input_request_id.text().strip()}")
+        lines.append(f"Customer Information: {self.input_customer.text().strip()}")
+        lines.append(f"Request Name: {self.input_request_name.text().strip()}")
+        lines.append(f"Submission Date: {self.input_submission_date.text().strip()}")
+        lines.append(f"Request Number: {self.input_request_number.text().strip()}")
+        lines.append(f"Project Account: {self.input_project_account.text().strip()}")
         lines.append(f"Deadline: {self.input_deadline.text().strip()}")
-        lines.append(f"Sample_id: {self.input_sample_id.text().strip()}")
+        lines.append(f"Sample Id: {self.input_sample_id.text().strip()}")
         lines.append(f"Nature: {self.input_nature.text().strip()}")
-        lines.append(f"Assign_to: {self.input_assign_to.text().strip()}")
-        lines.append(f"Test_Date: {self.input_test_date.text().strip()}")
-        lines.append(f"Receive_Date: {self.input_receive_date.text().strip()}")
-        lines.append(f"Report_Date: {self.input_report_date.text().strip()}")
-        lines.append(f"Request_desc: {self.input_request_desc.text().strip()}")
+        lines.append(f"Assign To: {self.input_assign_to.text().strip()}")
+        lines.append(f"Test Date: {self.input_test_date.text().strip()}")
+        lines.append(f"Receive Date: {self.input_receive_date.text().strip()}")
+        lines.append(f"Report Date: {self.input_report_date.text().strip()}")
+        lines.append(f"Request Description: {self.input_request_desc.text().strip()}")
 
         # 覆盖当前确认块，然后重绘日志
         self.confirm_block = "\n".join(lines)
         self.confirmed = True
         self.render_log()
-        QMessageBox.information(self, "提示", "数据已汇总到日志，请确认无误后点击“生成报告”。")
+        QMessageBox.information(self, "Info", "Compiled Successful. Please review and generate when ready")
 
     # ====== 生成报告 ======
     def on_generate(self):
         if not self.txt_path:
-            QMessageBox.warning(self, "提示", "请先选择 txt 文件。")
+            QMessageBox.warning(self, "Info", "Choosing TXT")
             return
 
         if not self.output_path:
-            QMessageBox.warning(self, "提示", "请先选择输出 Word 文件路径。")
+            QMessageBox.warning(self, "Info", "Choosing Output")
             return
 
         if not os.path.exists(self.template_path):
-            QMessageBox.warning(self, "提示", f"模板文件不存在：\n{self.template_path}")
+            QMessageBox.warning(self, "Info", f"Template don't exist\n{self.template_path}")
             return
 
         if self.parsed_info is None:
-            QMessageBox.warning(self, "提示", "txt 尚未成功解析。")
+            QMessageBox.warning(self, "Info", "[TXT]Parsed Failed")
             return
 
         if not self.confirmed:
-            QMessageBox.warning(self, "提示", "请先点击“确认数据”，检查无误后再生成报告。")
+            QMessageBox.warning(self, "Info", "Please confirm and generate")
             return
 
         # --------- 构造占位符映射：手动输入 + 自动识别（以界面为准） ----------
@@ -433,7 +434,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             segments = []
             block = (
-                f'<span style="color:#ff5555;">[Segments 解析失败]</span> {e}<br>'
+                f'<span style="color:#ff5555;">[Segments Parsed Failed]</span> {e}<br>'
             )
             self.generate_logs.append(block)
             self.render_log()
@@ -465,20 +466,20 @@ class MainWindow(QMainWindow):
                 figure_number=figure_number,
             )
             block = (
-                f'<span style="color:#33cc33;">[生成成功]</span> '
+                f'<span style="color:#33cc33;">[Generate Successful]</span> '
                 f'{os.path.basename(self.output_path)}<br>========'
             )
             self.generate_logs.append(block)
             self.render_log()
-            QMessageBox.information(self, "成功", "报告生成成功！\n可以打开输出 Word 检查。")
+            QMessageBox.information(self, "Successful", "Generate Successful!\nCan open word and check")
         except Exception as e:
             block = (
-                f'<span style="color:#ff5555;">[生成失败]</span> '
+                f'<span style="color:#ff5555;">[Generate Failed]</span> '
                 f'{os.path.basename(self.output_path)} - {e}<br>========'
             )
             self.generate_logs.append(block)
             self.render_log()
-            QMessageBox.critical(self, "错误", f"生成报告失败：\n{e}")
+            QMessageBox.critical(self, "Error", f"Generate Failed\n{e}")
 
 
 def main():
