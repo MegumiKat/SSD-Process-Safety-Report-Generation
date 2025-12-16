@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QScrollArea, QSizePolicy, QFrame
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTextCursor, QPixmap
+from PyQt6.QtGui import QTextCursor, QPixmap, QIcon
 from pathlib import Path
 
 from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
@@ -704,7 +704,16 @@ class MainWindow(QMainWindow):
 def main():
     app = QApplication(sys.argv)
 
-    
+    # icon
+    base_dir = Path(__file__).resolve().parents[1]  # .../src
+    icon_path_ico = base_dir / "assets" / "app.ico"
+    icon_path_png = base_dir / "assets" / "app.png"
+
+    icon_path = icon_path_ico if icon_path_ico.exists() else icon_path_png
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+    else:
+        print(f"[Warning] Icon file not found: {icon_path_ico} / {icon_path_png}")
     # ===== 加载 QSS 样式 (mac 深色主题) =====
     # ui_main.py 在 src/ui 下，parents[1] 就是 src 目录
     base_dir = Path(__file__).resolve().parents[1]  # .../src
