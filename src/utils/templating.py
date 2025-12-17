@@ -223,7 +223,12 @@ def _insert_dsc_figure_after_discussion(
     idx += 1
 
     # 插入图注段落（居中）
-    caption_text = f"Figure {figure_number}. DSC test curve of {sample_name}"
+    # caption_text = f"Figure {figure_number}. DSC test curve of {sample_name}"
+
+    # 用 pdf 文件名（去掉后缀）作为 sample name
+    pdf_basename = os.path.splitext(os.path.basename(pdf_path))[0]
+    caption_text = f"Figure {figure_number}. DSC test curve of {pdf_basename}"
+    
     cap_para = doc.add_paragraph(caption_text)
     cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     parent.insert(idx, cap_para._p)

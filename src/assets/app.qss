@@ -8,7 +8,6 @@ QWidget {
 /* 主窗口（可选） */
 QMainWindow {
     background-color: #1f1f1f;
-    
 }
 
 /* 标题、说明文字 */
@@ -16,42 +15,75 @@ QLabel {
     color: #f5f5f5;
 }
 
-/* 只给主标题用的大号字：objectName = "AppTitle" */
+/* 程序主标题：objectName = "AppTitle" */
 QLabel#AppTitle {
     font-size: 22px;
     font-weight: bold;
-    color:rgba(255, 136, 0, 0.943)
+    color: rgba(255, 136, 0, 0.94);
 }
 
-/* 分组标题等可以稍微淡一点 */
+/* 分组标题（如果以后需要可以在代码里设置 objectName 为 sectionTitle / subtitle） */
 QLabel[objectName="sectionTitle"],
 QLabel[objectName="subtitle"] {
     color: #d0d0d0;
     font-weight: bold;
 }
 
-/* ===== 输入框：QLineEdit / QTextEdit ===== */
-QLineEdit, QTextEdit {
+/* ===== 单行控件：输入框 / 文件选择容器 / 输出容器（统一高度和风格） ===== */
+QLineEdit,
+QWidget#FileChipBox,
+QWidget#OutputBox {
     background-color: #2b2b2b;
     color: #f5f5f5;
     border: 1px solid #3b3b3b;
     border-radius: 6px;
     padding: 3px 6px;
-    selection-background-color: #3a84ff;  /* macOS 蓝色高亮 */
-    selection-color: #ffffff;
+
+    /* 高度统一控制 */
+    min-height: 24px;
+    max-height: 24px;
 }
 
+/* 禁用状态 */
 QLineEdit:disabled,
+QWidget#FileChipBox:disabled,
+QWidget#OutputBox:disabled {
+    color: #888888;
+    background-color: #2a2a2a;
+    border: 1px solid #333333;
+}
+
+/* 聚焦高亮：只作用在 QLineEdit，FileChipBox / OutputBox 不会有 focus 边框 */
+QLineEdit:focus {
+    border: 1px solid rgba(255, 136, 0, 0.94);
+}
+
+/* OutputBox 内的文件名 label 简单留点左右 padding */
+QWidget#OutputBox QLabel {
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+/* ===== 多行文本：QTextEdit ===== */
+QTextEdit {
+    background-color: #2b2b2b;
+    color: #f5f5f5;
+    border: 1px solid #3b3b3b;
+    border-radius: 6px;
+    padding: 3px 6px;
+
+    /* 比单行高一点 */
+    min-height: 60px;
+}
+
 QTextEdit:disabled {
     color: #888888;
     background-color: #2a2a2a;
     border: 1px solid #333333;
 }
 
-/* 聚焦时边框高亮 */
-QLineEdit:focus,
 QTextEdit:focus {
-    border: 1px solid #3a84ff;
+    border: 1px solid rgba(255, 136, 0, 0.94);
 }
 
 /* ===== 按钮 ===== */
@@ -70,7 +102,7 @@ QPushButton:hover {
 
 QPushButton:pressed {
     background-color: #2a2a2a;
-    border: 1px solid #3a84ff;
+    border: 1px solid rgba(255, 136, 0, 0.94);
 }
 
 QPushButton:disabled {
@@ -79,19 +111,19 @@ QPushButton:disabled {
     border: 1px solid #333333;
 }
 
-/* 主动作按钮（如果你给某些按钮单独起 objectName，比如 btn_generate） */
+/* 主动作按钮：Generate Report（记得在代码里给按钮设 objectName = "btn_generate"） */
 QPushButton#btn_generate {
-    background-color: #3a84ff;
-    border: 1px solid #3a84ff;
+    background-color: rgb(255, 119, 0);
+    border: 1px solid rgb(255, 119, 0);
     color: #ffffff;
 }
 
 QPushButton#btn_generate:hover {
-    background-color: #4a8fff;
+    background-color: rgba(255, 136, 0, 0.94);
 }
 
 QPushButton#btn_generate:pressed {
-    background-color: #2f6fd6;
+    background-color: rgba(255, 136, 0, 0.94);
 }
 
 /* ===== 滚动区域 / 滚动条 ===== */
@@ -153,7 +185,7 @@ QGroupBox::title {
     color: #d0d0d0;
 }
 
-/* 分割线：用于你顶部 header 下方那条线 */
+/* 分割线：你顶部 header 下方那条水平虚线 */
 QFrame[frameShape="4"] {  /* 4 = QFrame::HLine */
     border: none;
     border-top: 1px dashed #555555;
@@ -161,11 +193,11 @@ QFrame[frameShape="4"] {  /* 4 = QFrame::HLine */
 
 /* ===== 表格（如果后面要用） ===== */
 QTableView {
-    background-color: #222222;
+    background-color: #555555;
     color: #f5f5f5;
     gridline-color: #3b3b3b;
     border: 1px solid #3b3b3b;
-    selection-background-color: #3a84ff;
+    selection-background-color: rgba(255, 136, 0, 0.94);
     selection-color: #ffffff;
 }
 
@@ -176,11 +208,48 @@ QHeaderView::section {
     border: 1px solid #3b3b3b;
 }
 
-/* ===== MessageBox 按钮/文字略微统一一下风格 ===== */
+/* ===== MessageBox ===== */
 QMessageBox {
-    background-color: #1f1f1f;
+    background-color: #555555;
 }
 
 QMessageBox QLabel {
     color: #f5f5f5;
+}
+
+/* ===== 文件选择 tag 容器（伪输入框） ===== */
+QWidget#FileChipBox {
+    /* 样式已在统一单行控件里指定，这里若要区别可以覆盖 */
+}
+
+/* 单个文件 tag 气泡 */
+QWidget#FileChip {
+    border-radius: 10px;
+    border: 1px solid #fcf6f6;
+    background-color: transparent;
+}
+
+/* 气泡里的文字 */
+QWidget#FileChip QLabel {
+    color: #f5f5f5;
+    padding: 0 2px;
+    font-size: 16pt;
+    background-color: transparent;
+}
+
+/* 气泡里的删除按钮 */
+QPushButton#FileChipCloseButton {
+    background-color: transparent;
+    border: none;
+    color: #f5f5f5;
+    min-width: 18px;
+    min-height: 18px;
+    max-width: 18px;
+    max-height: 18px;
+    padding: 0;
+}
+
+QPushButton#FileChipCloseButton:hover {
+    background-color: #555555;
+    border-radius: 9px;
 }
