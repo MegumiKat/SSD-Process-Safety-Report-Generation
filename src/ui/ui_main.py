@@ -24,7 +24,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("DSC Reports Generation Tool (template + txt + pdf)")
-        self.resize(1100, 650)
+        self.resize(1400, 800)
 
         # ==== status ====
         self.txt_path: str = ""
@@ -119,6 +119,16 @@ class MainWindow(QMainWindow):
         # ---------- 左侧：文件选择区域 ----------
         file_layout = QVBoxLayout()
 
+        # 伪输入框：一个有边框的容器，里面放气泡
+        def _create_chip_box():
+            box = QWidget()
+            box.setObjectName("FileChipBox")
+            layout = QHBoxLayout(box)
+            layout.setContentsMargins(6, 2, 6, 2)
+            layout.setSpacing(4)
+            layout.addStretch()  # 让气泡靠左
+            return box, layout
+
         def _new_path_edit() -> QLineEdit:
             e = QLineEdit()
             e.setReadOnly(True)
@@ -126,36 +136,69 @@ class MainWindow(QMainWindow):
             e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             return e
 
-        # 1. txt
+        # 小工具：生成“气泡容器”（带水平布局 + stretch）
+        def _new_chip_container():
+            container = QWidget()
+            layout = QHBoxLayout(container)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(4)
+            layout.addStretch()  # 保证气泡靠左
+            return container, layout
+
+        # ===== TXT 行：多个 txt 文件 + 气泡显示 =====
         h_txt = QHBoxLayout()
-        self.edit_txt = _new_path_edit()
-        btn_txt = QPushButton("Choose TXT")
-        btn_txt.clicked.connect(self.choose_txt)
         lbl_txt = QLabel("DSC Result txt:")
+
+        self.txt_chip_box, self.txt_chip_layout = _create_chip_box()
+
+        btn_txt = QPushButton("Add TXT")
+        btn_txt.clicked.connect(self.choose_txt)
+
         h_txt.addWidget(lbl_txt)
-        h_txt.addWidget(self.edit_txt)
+        h_txt.addWidget(self.txt_chip_box, 1)
         h_txt.addWidget(btn_txt)
         file_layout.addLayout(h_txt)
 
-        # 2. pdf
+        # 初始化 txt 文件列表
+        self.txt_files: list[str] = []
+
+        # ===== PDF 行：多个 pdf 文件 + 气泡显示 =====
         h_pdf = QHBoxLayout()
-        self.edit_pdf = _new_path_edit()
-        btn_pdf = QPushButton("Choose PDF")
-        btn_pdf.clicked.connect(self.choose_pdf)
         lbl_pdf = QLabel("Curve Graph:")
+
+        # 用伪输入框容器来承载气泡
+        self.pdf_chip_box, self.pdf_chip_layout = _create_chip_box()
+
+        btn_pdf = QPushButton("Add PDF")
+        btn_pdf.clicked.connect(self.choose_pdf)
+
         h_pdf.addWidget(lbl_pdf)
-        h_pdf.addWidget(self.edit_pdf)
+        h_pdf.addWidget(self.pdf_chip_box, 1)
         h_pdf.addWidget(btn_pdf)
         file_layout.addLayout(h_pdf)
 
-        # 3. 输出文件
+        # 初始化 pdf 文件列表
+        self.pdf_files: list[str] = []
+
+        # ===== 输出文件（保持单个路径框） =====
         h_out = QHBoxLayout()
-        self.edit_output = _new_path_edit()
+        lbl_out = QLabel("Output Report")
+
+        # 伪输入框 + label
+        self.output_box = QWidget()
+        self.output_box.setObjectName("OutputBox")
+        out_layout = QHBoxLayout(self.output_box)
+        out_layout.setContentsMargins(6, 0, 6, 0)
+        out_layout.setSpacing(4)
+
+        self.output_label = QLabel("No output file selected")
+        out_layout.addWidget(self.output_label)
+
         btn_out = QPushButton("Choose Output Path")
         btn_out.clicked.connect(self.choose_output)
-        lbl_out = QLabel("Output Report")
+
         h_out.addWidget(lbl_out)
-        h_out.addWidget(self.edit_output)
+        h_out.addWidget(self.output_box, 1)
         h_out.addWidget(btn_out)
         file_layout.addLayout(h_out)
 
@@ -174,6 +217,7 @@ class MainWindow(QMainWindow):
         self.btn_confirm = QPushButton("Confirm Data")
         self.btn_confirm.clicked.connect(self.on_confirm)
         self.btn_generate = QPushButton("Generate Report")
+        self.btn_generate.setObjectName("btn_generate")  # 让 QSS 的主按钮样式生效
         self.btn_generate.clicked.connect(self.on_generate)
         h_buttons.addWidget(self.btn_confirm)
         h_buttons.addWidget(self.btn_generate)
@@ -182,22 +226,22 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(_create_separator("h"))
 
         # ---------- 左侧：手动输入区域（黄色部分） ----------
-        scroll_manual = QScrollArea()
-        scroll_manual.setWidgetResizable(True)
-        form_container = QWidget()
-        self.form_layout = QFormLayout(form_container)
+                # ---------- 左侧：手动输入区域（Request / Sample 两个独立块，每个有自己的 scroll） ----------
 
+        # 通用：单行输入组件
         def _new_input() -> QLineEdit:
             e = QLineEdit()
-            e.setMinimumWidth(260)
-            e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            e.setMinimumWidth(140)  # ⇐ 想多短可以自己调，比如 120/140/160
+            e.setMaximumWidth(220)  # 控制一个上限，防止拉得太长
+            e.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
             return e
 
-        def _add_form_row(form: QFormLayout, text: str, widget: QLineEdit):
+        # 通用：在 FormLayout 里加一行（支持 QLineEdit / QTextEdit 等任意 QWidget）
+        def _add_form_row(form: QFormLayout, text: str, widget: QWidget):
             label = QLabel(text)
             form.addRow(label, widget)
 
-        # 这些字段对应模板里的 {{占位符}}
+        # ===== 字段定义（与之前相同，只是放到这里） =====
         self.input_lsmp_code = _new_input()
         self.input_request_id = _new_input()
         self.input_customer = _new_input()
@@ -215,30 +259,69 @@ class MainWindow(QMainWindow):
         self.input_receive_date = _new_input()
         self.input_report_date = _new_input()
 
-        self.input_request_desc = _new_input()
+        # Request Description 换成多行文本
+        self.input_request_desc = QTextEdit()
+        self.input_request_desc.setAcceptRichText(False)
+        self.input_request_desc.setMinimumWidth(140)          # 和 _new_input 一样
+        self.input_request_desc.setMaximumWidth(220)          # 和 _new_input 一样
+        self.input_request_desc.setSizePolicy(
+            self.input_lsmp_code.sizePolicy().horizontalPolicy(),
+            QSizePolicy.Policy.Fixed,
+        )
 
         self.input_lsmp_code.setText("LSMP-21 F01v04")
 
-        _add_form_row(self.form_layout, "Test Code:", self.input_lsmp_code)
-        _add_form_row(self.form_layout, "Request Id:", self.input_request_id)
-        _add_form_row(self.form_layout, "Customer Information:", self.input_customer)
-        _add_form_row(self.form_layout, "Request Name:", self.input_request_name)
-        _add_form_row(self.form_layout, "Submission Date:", self.input_submission_date)
-        _add_form_row(self.form_layout, "Request Number:", self.input_request_number)
-        _add_form_row(self.form_layout, "Project Account:", self.input_project_account)
-        _add_form_row(self.form_layout, "Deadline:", self.input_deadline)
+        # ===== 手动输入总容器：水平放两个滚动块 =====
+        manual_block = QWidget()
+        manual_hbox = QHBoxLayout(manual_block)
+        manual_hbox.setContentsMargins(0, 0, 0, 0)
+        manual_hbox.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        _add_form_row(self.form_layout, "Request Description:", self.input_request_desc)
-        _add_form_row(self.form_layout, "Sample_id:", self.input_sample_id)
-        _add_form_row(self.form_layout, "Nature:", self.input_nature)
-        _add_form_row(self.form_layout, "Assign To:", self.input_assign_to)
+        # ---------- 左侧块：Request information + 独立 scroll ----------
+        scroll_request = QScrollArea()
+        scroll_request.setWidgetResizable(True)
+        request_container = QWidget()
+        self.request_form = QFormLayout(request_container)
+
+        # Request information 内部字段
+        _add_form_row(self.request_form, "Test Code:", self.input_lsmp_code)
+        _add_form_row(self.request_form, "Request Id:", self.input_request_id)
+        _add_form_row(self.request_form, "Customer Information:", self.input_customer)
+        _add_form_row(self.request_form, "Request Name:", self.input_request_name)
+        _add_form_row(self.request_form, "Submission Date:", self.input_submission_date)
+        _add_form_row(self.request_form, "Request Number:", self.input_request_number)
+        _add_form_row(self.request_form, "Project Account:", self.input_project_account)
+        _add_form_row(self.request_form, "Deadline:", self.input_deadline)
+
+        _add_form_row(self.request_form, "Receive Date:", self.input_receive_date)
+        _add_form_row(self.request_form, "Test Date:", self.input_test_date)
+        _add_form_row(self.request_form, "Report Date:", self.input_report_date)
+
+        # Request information 的最后一项：多行描述
+        _add_form_row(self.request_form, "Request Description:", self.input_request_desc)
+
+        scroll_request.setWidget(request_container)
+
+        # ---------- 右侧块：Sample information + 独立 scroll ----------
+        scroll_sample = QScrollArea()
+        scroll_sample.setWidgetResizable(True)
+        sample_container = QWidget()
+        self.sample_form = QFormLayout(sample_container)
+
+        _add_form_row(self.sample_form, "Sample Id:", self.input_sample_id)
+        _add_form_row(self.sample_form, "Nature:", self.input_nature)
+        _add_form_row(self.sample_form, "Assign To:", self.input_assign_to)
+
+        scroll_sample.setWidget(sample_container)
+
+        # ---------- 把两个滚动块 + 中间竖线加入水平布局 ----------
+        manual_hbox.addWidget(scroll_request, 1)
+        manual_hbox.addWidget(_create_separator("v"), 0)  # 中间竖直分界线
+        manual_hbox.addWidget(scroll_sample, 1)
+
+        # 最终把整个手动输入模块加到左侧主布局
+        left_layout.addWidget(manual_block, stretch=1)
         
-        _add_form_row(self.form_layout, "Receive Date:", self.input_receive_date)
-        _add_form_row(self.form_layout, "Test Date:", self.input_test_date)
-        _add_form_row(self.form_layout, "Report Date:", self.input_report_date)
-
-        scroll_manual.setWidget(form_container)
-        left_layout.addWidget(scroll_manual, stretch=1)
 
         # ---------- 右侧：自动识别结果（可修改） ----------
         auto_scroll = QScrollArea()
@@ -302,6 +385,9 @@ class MainWindow(QMainWindow):
 
         self.log = QTextEdit()
         self.log.setReadOnly(True)
+        self.log.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self.log.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
         right_layout.addWidget(self.log, stretch=1)
 
         # 启动时检查模板
@@ -334,6 +420,79 @@ class MainWindow(QMainWindow):
     def _add_file_log(self, html_msg: str):
         self.file_logs.append(html_msg)
         self.render_log()
+
+
+    def _refresh_file_chips(self, kind: str):
+        """
+        根据当前文件列表刷新 txt/pdf 的气泡显示。
+        kind: "txt" 或 "pdf"
+        """
+        if kind == "txt":
+            layout = self.txt_chip_layout
+            files = self.txt_files
+            remove_slot = self._remove_txt_file
+        else:
+            layout = self.pdf_chip_layout
+            files = self.pdf_files
+            remove_slot = self._remove_pdf_file
+
+        # 只保留最后一个 stretch，其余 item 清空
+        while layout.count() > 1:
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        # 没有文件时，可以放一个“无文件”灰字占位（可选）
+        if not files:
+            placeholder = QLabel("No file selected")
+            placeholder.setStyleSheet("color: #777777;")
+            layout.insertWidget(layout.count() - 1, placeholder)
+            return
+
+        for path in files:
+            chip = QWidget()
+            chip.setObjectName("FileChip")  # 让 QSS 的 FileChip 样式生效
+            chip_layout = QHBoxLayout(chip)
+            chip_layout.setContentsMargins(4, 0, 4, 0)
+            chip_layout.setSpacing(4)
+
+            name_label = QLabel(os.path.basename(path))
+
+            del_btn = QPushButton("✕")
+            del_btn.setObjectName("FileChipCloseButton")
+            del_btn.setFixedSize(18, 18)
+            del_btn.clicked.connect(lambda _, p=path: remove_slot(p))
+
+            chip_layout.addWidget(name_label)
+            chip_layout.addWidget(del_btn)
+
+            layout.insertWidget(layout.count() - 1, chip)
+
+    def _remove_txt_file(self, path: str):
+        if path in self.txt_files:
+            self.txt_files.remove(path)
+
+            # 如果删掉的是当前使用的 txt，就切换到剩余的最后一个，重新解析
+            if self.txt_path == path:
+                self.txt_path = self.txt_files[-1] if self.txt_files else ""
+                self.clear_log()
+                if self.txt_path:
+                    self._parse_txt_and_fill()
+                else:
+                    self.parsed_info = None
+                    self.parsed_segments = None
+
+            self._refresh_file_chips("txt")
+
+    def _remove_pdf_file(self, path: str):
+        if path in self.pdf_files:
+            self.pdf_files.remove(path)
+
+            if self.pdf_path == path:
+                self.pdf_path = self.pdf_files[-1] if self.pdf_files else ""
+
+            self._refresh_file_chips("pdf")
 
 
     def _clear_layout(self, layout):
@@ -512,23 +671,58 @@ class MainWindow(QMainWindow):
 
     # ====== 文件选择 ======
     def choose_txt(self):
-        path, _ = QFileDialog.getOpenFileName(
+        paths, _ = QFileDialog.getOpenFileNames(
             self, "Choose TXT", "", "Text Files (*.txt);;All Files (*)"
         )
-        if path:
-            self.txt_path = path
-            self.edit_txt.setText(os.path.basename(path))  # 只显示文件名
-            self._parse_txt_and_fill()
+        if not paths:
+            return
+
+        added = False
+        for path in paths:
+            if path not in self.txt_files:
+                self.txt_files.append(path)
+                added = True
+
+        if not added:
+            QMessageBox.information(self, "Info", "All selected TXT files are already added.")
+            return
+
+        self.txt_path = self.txt_files[-1]
+
+        self.clear_log()
+        self._parse_txt_and_fill()
+        self._refresh_file_chips("txt")
 
     def choose_pdf(self):
-        path, _ = QFileDialog.getOpenFileName(
+        paths, _ = QFileDialog.getOpenFileNames(
             self, "Choose PDF", "", "PDF Files (*.pdf);;All Files (*)"
         )
-        if path:
-            self.pdf_path = path
-            self.edit_pdf.setText(os.path.basename(path))
-            msg = f'<span style="color:#33cc33;">[Choosing Successful]</span> {os.path.basename(self.pdf_path)}'
-            self._add_file_log(msg)
+        if not paths:
+            return
+
+        added = False
+        for path in paths:
+            if path not in self.pdf_files:
+                self.pdf_files.append(path)
+                added = True
+
+        if not added:
+            QMessageBox.information(self, "Info", "All selected PDF files are already added.")
+            return
+
+        # 当前激活 pdf 用最后一个新增的
+        self.pdf_path = self.pdf_files[-1]
+
+        # 每次 add pdf 清空 log
+        self.clear_log()
+        msg = (
+            f'<span style="color:#33cc33;">[Choosing Successful]</span> '
+            f'{os.path.basename(self.pdf_path)}'
+        )
+        self._add_file_log(msg)
+
+        # 刷新气泡显示（“伪文本框”里就会出现这些 tag）
+        self._refresh_file_chips("pdf")
 
     def choose_output(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -538,8 +732,14 @@ class MainWindow(QMainWindow):
             if not path.lower().endswith(".docx"):
                 path += ".docx"
             self.output_path = path
-            self.edit_output.setText(os.path.basename(path))
-            msg = f'<span style="color:#33cc33;">[Choosing Successful]</span> Output: {os.path.basename(self.output_path)}'
+            # 原来是 self.edit_output.setText(...)
+            # 现在改成：
+            self.output_label.setText(os.path.basename(path))
+
+            msg = (
+                f'<span style="color:#33cc33;">[Choosing Successful]</span> '
+                f'Output: {os.path.basename(self.output_path)}'
+            )
             self._add_file_log(msg)
 
     # ====== 确认数据：覆盖当前确认块 ======
@@ -582,7 +782,7 @@ class MainWindow(QMainWindow):
         lines.append(f"Test Date: {self.input_test_date.text().strip()}")
         lines.append(f"Receive Date: {self.input_receive_date.text().strip()}")
         lines.append(f"Report Date: {self.input_report_date.text().strip()}")
-        lines.append(f"Request Description: {self.input_request_desc.text().strip()}")
+        lines.append(f"Request Description: {self.input_request_desc.toPlainText().strip()}")
 
         # 覆盖当前确认块，然后重绘日志
         self.confirm_block = "\n".join(lines)
@@ -633,7 +833,7 @@ class MainWindow(QMainWindow):
         mapping["{{Receive_Date}}"] = self.input_receive_date.text().strip()
         mapping["{{Report_Date}}"] = self.input_report_date.text().strip()
 
-        mapping["{{Request_desc}}"] = self.input_request_desc.text().strip()
+        mapping["{{Request_desc}}"] = self.input_request_desc.toPlainText().strip()
 
         # --- 自动部分（绿色基础字段，来自右侧可编辑栏） ---
         mapping["{{Sample_name}}"] = self.auto_sample_name.text().strip()
