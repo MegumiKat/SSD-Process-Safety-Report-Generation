@@ -2,7 +2,7 @@
 QWidget {
     background-color: #1f1f1f;   /* 深色背景，接近 macOS Dark */
     color: #f5f5f5;             /* 默认文字颜色 */
-    font-size: 16pt;
+    font-size: 20pt;
 }
 
 /* 主窗口（可选） */
@@ -17,7 +17,7 @@ QLabel {
 
 /* 程序主标题：objectName = "AppTitle" */
 QLabel#AppTitle {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: bold;
     color: rgba(255, 136, 0, 0.94);
 }
@@ -25,19 +25,19 @@ QLabel#AppTitle {
 /* 顶部 Header 里 Template/Output 左边的文字（Template: / Output:） */
 QLabel#HeaderLabel {
     color: #d0d0d0;
-    font-size: 14pt;
+    font-size: 20pt;
     font-weight: normal;
 }
 
 /* 顶部 Header 里 Template/Output 的值（文件名） */
 QLabel#HeaderValue {
     color: #f5f5f5;
-    font-size: 14pt;
+    font-size: 16pt;
     font-weight: normal;
 
     /* 让两行的 value 列宽度一致 */
-    min-width: 200px;
-    max-width: 200px;
+    min-width: 250px;
+    max-width: 250px;
 
     /* 文本在 label 内右对齐（按钮不受影响） */
     qproperty-alignment: 'AlignRight | AlignVCenter';

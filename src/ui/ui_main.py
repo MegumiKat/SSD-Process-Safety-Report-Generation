@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor, QPixmap, QIcon
 from pathlib import Path
+from datetime import datetime
 
 from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
 from src.utils.parser_dsc import parse_dsc_txt_basic, parse_dsc_segments
@@ -329,9 +330,9 @@ class MainWindow(QMainWindow):
         self._rebuild_manual_sample_forms()
 
         # ---------- 把两个滚动块 + 中间竖线加入水平布局 ----------
-        manual_hbox.addWidget(scroll_request, 1)
+        manual_hbox.addWidget(scroll_request, 2)
         manual_hbox.addWidget(_create_separator("v"), 0)  # 中间竖直分界线
-        manual_hbox.addWidget(scroll_sample, 1)
+        manual_hbox.addWidget(scroll_sample, 3)
 
         # 最终把整个手动输入模块加到左侧主布局
         left_layout.addWidget(manual_block, stretch=1)
@@ -397,6 +398,9 @@ class MainWindow(QMainWindow):
         self.auto_temp_calib = _new_auto_input()
         self.auto_end_date = _new_auto_input()
 
+        # 在这里加：
+        self.auto_sample_name.textChanged.connect(self._on_auto_sample_name_changed)
+
         title_auto = QLabel("Automatically identified fields:")
         auto_form.addRow(title_auto)
 
@@ -454,13 +458,21 @@ class MainWindow(QMainWindow):
     def render_log(self):
         """根据 file_logs / confirm_block / generate_logs 重绘日志窗口。"""
         self.log.clear()
+
+        # 文件日志（已是 html）
         for msg in self.file_logs:
             self.log.append(msg)
+
+        # 确认块：我们现在用 html 生成，用 insertHtml
         if self.confirm_block:
-            # 确认块是纯文本，多行
-            self.log.append(self.confirm_block)
+            self.log.append("")  # 空行分隔
+            self.log.insertHtml(self.confirm_block)
+            self.log.append("")  # 再加一个空行
+
+        # 生成日志（也是 html）
         for block in self.generate_logs:
             self.log.append(block)
+
         self.log.moveCursor(QTextCursor.MoveOperation.End)
 
     def clear_log(self):
@@ -646,6 +658,29 @@ class MainWindow(QMainWindow):
         # 保证 sample.segments 引用同一个列表即可：
         sample.segments = self.parsed_segments or []
 
+    def _on_auto_sample_name_changed(self, text: str):
+        """
+        当右侧 Auto 区域的 Sample Name 被手动修改时：
+        - 同步到当前 SampleItem.name
+        - 同步到当前样品的 auto_fields.sample_name
+        - 重新渲染左侧 Samples 卡片和左下 Sample information 标题
+        """
+        sample = self._get_current_sample()
+        if sample is None:
+            return
+
+        new_name = text.strip()
+
+        # 更新 Sample 模型里的名字
+        sample.name = new_name
+        sample.auto_fields.sample_name = new_name
+
+        # 先把左下框里已经填的 Sample Id / Nature / Assign To 保存回各样品
+        self._sync_manual_fields_from_ui()
+
+        # 重新画左侧样品列表和左下 sample 信息标题
+        self._rebuild_sample_list_ui()
+        self._rebuild_manual_sample_forms()
 
     def _rebuild_sample_list_ui(self):
         """
@@ -749,6 +784,43 @@ class MainWindow(QMainWindow):
         # 新增：更新右上角导航
         self._rebuild_right_top_actions()
 
+        # ===== 工具方法 =====
+    def _get_latest_end_date_from_samples(self) -> str:
+        """
+        遍历所有样品的 auto_fields.end_date，取日期最大的那个。
+        支持 2025/11/11、2025-11-11、2025.11.11 这几种格式。
+        返回用于填模板和展示的字符串（可以是原始格式）。
+        """
+        if not self.samples:
+            # 没有多样品，就用当前界面上的值兜底
+            return self.auto_end_date.text().strip()
+
+        candidates: list[tuple[datetime, str]] = []
+
+        for s in self.samples:
+            raw = (s.auto_fields.end_date or "").strip()
+            if not raw:
+                continue
+
+            dt = None
+            for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d"):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    break
+                except ValueError:
+                    continue
+            if dt is not None:
+                # 保存 (真正比较用的 datetime, 原始字符串)
+                candidates.append((dt, raw))
+
+        if not candidates:
+            # 都解析失败，就仍然用当前 UI 的值
+            return self.auto_end_date.text().strip()
+
+        latest_dt, latest_raw = max(candidates, key=lambda x: x[0])
+        # 也可以统一格式：latest_dt.strftime("%Y/%m/%d")
+        return latest_raw
+
 
     def on_remove_sample(self, sample_id: int):
         """
@@ -810,6 +882,7 @@ class MainWindow(QMainWindow):
 
         # 5) 重新绘制左侧样品卡片列表
         self._rebuild_sample_list_ui()
+        self._rebuild_manual_sample_forms()
 
         # 6) 记一条日志（可选）
         msg = (
@@ -827,6 +900,10 @@ class MainWindow(QMainWindow):
         [SampleName 作为小标题]
         [Sample Id] [Nature] [Assign To] 三个一行
         """
+
+        # 先把当前 UI 里的内容同步回各 SampleItem.manual_fields
+        self._sync_manual_fields_from_ui()
+
         # 清空旧布局
         while self.sample_manual_layout.count():
             item = self.sample_manual_layout.takeAt(0)
@@ -841,7 +918,8 @@ class MainWindow(QMainWindow):
             self.sample_manual_layout.addStretch(1)
             return
 
-        for sample in self.samples:
+                # 这里开始是循环部分
+        for idx, sample in enumerate(self.samples):
             group = QWidget()
             group_layout = QVBoxLayout(group)
             group_layout.setContentsMargins(0, 4, 0, 4)
@@ -866,15 +944,16 @@ class MainWindow(QMainWindow):
             edit_nature.setText(mf.nature)
             edit_assign_to.setText(mf.assign_to)
 
-            # 可以加 placeholder，方便区分
+            # placeholder
             edit_sample_id.setPlaceholderText("Sample Id")
             edit_nature.setPlaceholderText("Nature")
             edit_assign_to.setPlaceholderText("Assign To")
 
-            # 宽度策略稍微收紧一点
+            # 宽度策略：让字段可以横向拉伸（按我们之前的建议）
             for e in (edit_sample_id, edit_nature, edit_assign_to):
                 e.setMinimumWidth(120)
-                e.setMaximumWidth(200)
+                # 如果你已经改成 Expanding，这里保持一致：
+                # e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
             row.addWidget(QLabel("Sample Id:"))
             row.addWidget(edit_sample_id)
@@ -892,6 +971,17 @@ class MainWindow(QMainWindow):
                 "nature": edit_nature,
                 "assign_to": edit_assign_to,
             }
+
+            # ===== 在样品之间添加分界线（最后一个不加） =====
+            if idx < len(self.samples) - 1:
+                sep = QFrame()
+                sep.setFrameShape(QFrame.Shape.HLine)
+                sep.setFrameShadow(QFrame.Shadow.Plain)
+                # 用虚线风格，跟你上面 _create_separator 的风格接近
+                sep.setStyleSheet(
+                    "QFrame { border: none; border-top: 1px dashed #555555; }"
+                )
+                self.sample_manual_layout.addWidget(sep)
 
         self.sample_manual_layout.addStretch(1)
 
@@ -928,11 +1018,7 @@ class MainWindow(QMainWindow):
 
         self.samples.append(sample)
         self.current_sample_id = sample.id
-
-        # 清空 log，解析这个样品（只解析一次）
-        self.clear_log()
         self._parse_sample(sample)
-
         # 重新画左侧样品列表 UI
         self._rebuild_sample_list_ui()
 
@@ -1124,9 +1210,22 @@ class MainWindow(QMainWindow):
             self.confirmed = False
             self.confirm_block = None  # 重新确认前清空确认块
 
+            # 日志增加样品名 + 文件情况
+            has_txt = bool(sample.txt_path)
+            has_pdf = bool(sample.pdf_path)
+
+            if has_txt and has_pdf:
+                file_info = f"{sample.name} (TXT + PDF)"
+            elif has_txt:
+                file_info = f"{sample.name} (TXT)"
+            elif has_pdf:
+                file_info = f"{sample.name} (PDF)"
+            else:
+                file_info = sample.name
+
             msg = (
                 f'<span style="color:#33cc33;">[Parsing Successful]</span> '
-                f'{os.path.basename(sample.txt_path)}'
+                f'{file_info}'
             )
             self._add_file_log(msg)
 
@@ -1136,12 +1235,25 @@ class MainWindow(QMainWindow):
             self.parsed_info = None
             self.parsed_segments = None
 
+                        # 日志增加样品名 + 文件情况
+            has_txt = bool(sample.txt_path)
+            has_pdf = bool(sample.pdf_path)
+
+            if not has_txt and not has_pdf:
+                file_info = f"{sample.name} (TXT + PDF)"
+            elif not has_txt:
+                file_info = f"{sample.name} (TXT)"
+            elif not has_pdf:
+                file_info = f"{sample.name} (PDF)"
+            else:
+                file_info = sample.name
+
             msg = (
                 f'<span style="color:#ff5555;">[Parsing Failed]</span> '
-                f'{os.path.basename(sample.txt_path)} - {e}'
+                f'{file_info}'
             )
             self._add_file_log(msg)
-            QMessageBox.critical(self, "Error", f"[TXT]Parsing Failed\n{e}")
+            # QMessageBox.critical(self, "Error", f"[TXT]Parsing Failed\n{e}")
 
     def choose_output(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -1174,6 +1286,7 @@ class MainWindow(QMainWindow):
         )
 
     # ====== 确认数据：覆盖当前确认块 ======
+        # ====== 确认数据：覆盖当前确认块 ======
     def on_confirm(self):
         if not self.txt_path:
             QMessageBox.warning(self, "Tips", "Please choose TXT")
@@ -1183,53 +1296,81 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Tips", "[TXT]Haven't parsed successful")
             return
 
-        # 在生成确认日志之前，先把当前 UI 的修改写回当前样品
-        sample = self._get_current_sample()
-        if sample is not None:
-            self._store_ui_to_sample(sample)
-
-        lines = []
-        # 先同步左下 Sample information 区域到 SampleItem.manual_fields
-        self._sync_manual_fields_from_ui()
+        # 先把当前右侧 UI 的修改写回当前样品（auto + segments）
         current_sample = self._get_current_sample()
-        mf = current_sample.manual_fields if current_sample is not None else None
+        if current_sample is not None:
+            self._store_ui_to_sample(current_sample)
 
-        lines.append("")
-        lines.append("===== Automatically identify fields (final value) =====")
-        lines.append("")
-        lines.append(f"Sample Name: {self.auto_sample_name.text().strip()}")
-        lines.append(f"Sample Mass: {self.auto_sample_mass.text().strip()}")
-        lines.append(f"Operator: {self.auto_operator.text().strip()}")
-        lines.append(f"Instrument: {self.auto_instrument.text().strip()}")
-        lines.append(f"Atmosphere: {self.auto_atmosphere.text().strip()}")
-        lines.append(f"Crucible: {self.auto_crucible.text().strip()}")
-        lines.append(f"Temp.Calib.: {self.auto_temp_calib.text().strip()}")
-        lines.append(f"End Date: {self.auto_end_date.text().strip()}")
-        lines.append("")
+        # 同步左下所有样品的 manual 字段到 SampleItem.manual_fields
+        self._sync_manual_fields_from_ui()
 
-        lines.append("===== Manual input =====")
-        lines.append("")
-        lines.append(f"Test Code: {self.input_lsmp_code.text().strip()}")
-        lines.append(f"Request Id: {self.input_request_id.text().strip()}")
-        lines.append(f"Customer Information: {self.input_customer.text().strip()}")
-        lines.append(f"Request Name: {self.input_request_name.text().strip()}")
-        lines.append(f"Submission Date: {self.input_submission_date.text().strip()}")
-        lines.append(f"Request Number: {self.input_request_number.text().strip()}")
-        lines.append(f"Project Account: {self.input_project_account.text().strip()}")
-        lines.append(f"Deadline: {self.input_deadline.text().strip()}")
-        lines.append(f"Test Date: {self.input_test_date.text().strip()}")
-        lines.append(f"Receive Date: {self.input_receive_date.text().strip()}")
-        lines.append(f"Report Date: {self.input_report_date.text().strip()}")
+        # === 开始拼 HTML ===
+        label_style = 'style="color:rgb(255,119,0);font-weight:bold;"'  # 字段名淡黄色
+        parts: list[str] = []
 
-        lines.append(f"Sample Id: {mf.sample_id if mf else ''}")
-        lines.append(f"Nature: {mf.nature if mf else ''}")
-        lines.append(f"Assign To: {mf.assign_to if mf else ''}")
+        parts.append("<div>")
 
+        # ---------- 自动识别字段（所有样品） ----------
+        parts.append('<b>===== Automatically identified fields (final value) =====</b><br><br>')
 
-        lines.append(f"Request Description: {self.input_request_desc.toPlainText().strip()}")
+        if not self.samples:
+            parts.append(f'<span {label_style}>No samples.</span><br><br>')
+        else:
+            for idx, sample in enumerate(self.samples, start=1):
+                af = sample.auto_fields
 
-        # 覆盖当前确认块，然后重绘日志
-        self.confirm_block = "\n".join(lines)
+                # 每个样品一个小标题
+                parts.append(
+                    f'<span {label_style}>Sample {idx}: {sample.name}</span><br>'
+                )
+                parts.append(f'<span {label_style}>Sample Name:</span>&nbsp;&nbsp;{af.sample_name}<br>')
+                parts.append(f'<span {label_style}>Crucible:</span>&nbsp;&nbsp;{af.crucible}<br>')
+                parts.append(f'<span {label_style}>Temp.Calib.:</span>&nbsp;&nbsp;{af.temp_calib}<br>')
+                parts.append(f'<span {label_style}>End Date:</span>&nbsp;&nbsp;{af.end_date}<br>')
+                parts.append("<br>")
+        
+
+            # ★ 在这里加：所有样品中最晚的 End Date
+            final_end_date = self._get_latest_end_date_from_samples()
+            parts.append(
+                f'<span {label_style}>Final End Date:</span>'
+                f'&nbsp;&nbsp;{final_end_date}<br><br>'
+            )
+
+        # ---------- 手动输入（Request + 所有样品 manual） ----------
+        parts.append('<b>===== Manual input =====</b><br><br>')
+
+        # 先是公共 Request 字段（只出现一次）
+        parts.append(f'<span {label_style}>Test Code:</span>&nbsp;&nbsp;{self.input_lsmp_code.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Request Id:</span>&nbsp;&nbsp;{self.input_request_id.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Customer Information:</span>&nbsp;&nbsp;{self.input_customer.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Request Name:</span>&nbsp;&nbsp;{self.input_request_name.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Submission Date:</span>&nbsp;&nbsp;{self.input_submission_date.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Request Number:</span>&nbsp;&nbsp;{self.input_request_number.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Project Account:</span>&nbsp;&nbsp;{self.input_project_account.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Deadline:</span>&nbsp;&nbsp;{self.input_deadline.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Test Date:</span>&nbsp;&nbsp;{self.input_test_date.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Receive Date:</span>&nbsp;&nbsp;{self.input_receive_date.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Report Date:</span>&nbsp;&nbsp;{self.input_report_date.text().strip()}<br>')
+        parts.append(f'<span {label_style}>Request Description:</span>&nbsp;&nbsp;{self.input_request_desc.toPlainText().strip()}<br>')
+        parts.append("<br>")
+
+        # 每个样品的 manual 字段
+        if self.samples:
+            for idx, sample in enumerate(self.samples, start=1):
+                mf = sample.manual_fields
+                parts.append(
+                    f'<span {label_style}>Sample {idx}: {sample.name}</span><br>'
+                )
+                parts.append(f'<span {label_style}>Sample Id:</span>&nbsp;&nbsp;{mf.sample_id}<br>')
+                parts.append(f'<span {label_style}>Nature:</span>&nbsp;&nbsp;{mf.nature}<br>')
+                parts.append(f'<span {label_style}>Assign To:</span>&nbsp;&nbsp;{mf.assign_to}<br>')
+                parts.append("<br>")
+
+        parts.append("</div>")
+
+        # 保存为确认块（HTML），重绘 log
+        self.confirm_block = "".join(parts)
         self.confirmed = True
         self.render_log()
         QMessageBox.information(self, "Info", "Compiled Successful. Please review and generate when ready")
@@ -1299,7 +1440,7 @@ class MainWindow(QMainWindow):
         mapping["{{Atmosphere}}"] = self.auto_atmosphere.text().strip()
         mapping["{{Crucible}}"] = self.auto_crucible.text().strip()
         mapping["{{Temp.Calib}}"] = self.auto_temp_calib.text().strip()
-        mapping["{{End_Date}}"] = self.auto_end_date.text().strip()
+        mapping["{{End_Date}}"] = self._get_latest_end_date_from_samples()
 
         # 在生成前，把 UI 中对 segments 的修改写回对象
         self._apply_segment_edits()
@@ -1324,11 +1465,30 @@ class MainWindow(QMainWindow):
             or (current_sample.name if current_sample else "")
         )
 
-        # === 生成 Discussion 文案 ===
-        if segments:
-            discussion_text = generate_dsc_summary(sample_name_for_segments, segments)
+        # === 生成 Discussion 文案（多样品优先） ===
+        # 多个样品：对每个样品单独生成一段，然后用空行拼起来
+        discussion_text = ""
+        if self.samples:
+            pieces: list[str] = []
+            for s in self.samples:
+                if not s.segments:
+                    continue
+                label = (
+                    s.auto_fields.sample_name
+                    or s.manual_fields.sample_id
+                    or s.name
+                    or ""
+                )
+                text_one = generate_dsc_summary(label, s.segments)
+                if text_one:
+                    pieces.append(text_one)
+            discussion_text = "\n\n".join(pieces)
         else:
-            discussion_text = ""
+            # 没有 samples 列表时，退回到“当前样品”逻辑
+            if segments:
+                discussion_text = generate_dsc_summary(sample_name_for_segments, segments)
+
+        figure_number = "1"   # 单样品兼容用；多样品时实际编号在 templating 里自动递增
         
         figure_number = "1"
 
@@ -1342,6 +1502,7 @@ class MainWindow(QMainWindow):
                 discussion_text=discussion_text,
                 pdf_path=self.pdf_path if self.pdf_path else None,
                 figure_number=figure_number,
+                samples=self.samples,
             )
             block = (
                 f'<span style="color:#33cc33;">[Generate Successful]</span> '
@@ -1388,5 +1549,5 @@ def main():
         print(f"[Warning] QSS file not found: {qss_path}")
 
     win = MainWindow()
-    win.show()
+    win.showMaximized()
     sys.exit(app.exec())

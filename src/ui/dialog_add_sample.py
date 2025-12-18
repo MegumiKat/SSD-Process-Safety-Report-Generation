@@ -1,12 +1,14 @@
 # src/ui/dialog_add_sample.py
 import os
 from typing import Optional
+from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import Qt
+from src.utils.parser_dsc import parse_dsc_txt_basic
 
 
 class AddSampleDialog(QDialog):
@@ -96,11 +98,22 @@ class AddSampleDialog(QDialog):
         self.txt_path = path
         self.lbl_txt_file.setText(os.path.basename(path))
 
-        # 如果样品名还没填，默认用 txt 文件名（去掉后缀）
+
+        # 如果「名字」目前是空的，则尝试用 TXT 里识别的样品名来填
         if not self.edit_name.text().strip():
-            base = os.path.basename(path)
-            name, _ = os.path.splitext(base)
-            self.edit_name.setText(name)
+            try:
+                basic = parse_dsc_txt_basic(path)
+                auto_name = basic.sample_name  # 解析出的样品名
+
+                # 如果解析不到样品名，就退回到文件名（去掉后缀）
+                if not auto_name:
+                    auto_name = Path(path).stem
+
+                self.edit_name.setText(auto_name)
+            except Exception as e:
+                # 解析出错时，为了不影响用户使用，可以只退回到文件名
+                auto_name = Path(path).stem
+                self.edit_name.setText(auto_name)
 
     def choose_pdf(self):
         path, _ = QFileDialog.getOpenFileName(

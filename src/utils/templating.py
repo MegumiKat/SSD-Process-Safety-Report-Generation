@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from docx import Document
 from docx.shared import Inches
-from src.models.models import DscSegment
+from src.models.models import DscSegment, SampleItem
 from docx.enum.table import WD_ALIGN_VERTICAL
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.text.paragraph import Paragraph
@@ -153,85 +153,123 @@ def _fill_discussion_paragraph(doc: Document, text: str) -> List[Paragraph]:
     return []
 
 
-
 def _insert_dsc_figure_after_discussion(
     doc: Document,
     pdf_path: str,          # 现在既可以是 pdf，也可以是 png/jpg
     figure_number: str,
     sample_name: str,
     discussion_paras: Optional[List[Paragraph]] = None,
-) -> None:
+) -> Optional[Paragraph]:
     """
     在 Discussion 段落后面插入 DSC 曲线图 + 图注。
-    pdf_path 既可以是：
-    - 一张现成的 PNG/JPG；
-    - 一份 PDF（用 PyMuPDF 渲染第一页）。
+    返回插入的图注段落，用于后续继续在其后插入下一张图。
     """
     if not os.path.exists(pdf_path):
         print(f"[figure] 文件不存在: {pdf_path}")
-        return
+        return None
 
     ext = os.path.splitext(pdf_path)[1].lower()
     image_path = None
 
-    # 1. 如果用户本来就选的是图片，直接用
     if ext in (".png", ".jpg", ".jpeg"):
         image_path = pdf_path
-
-    # 2. 如果是 PDF，用 PyMuPDF 渲染第一页为 PNG
     elif ext == ".pdf":
         try:
             doc_pdf = fitz.open(pdf_path)
-            page = doc_pdf.load_page(0)           # 第 0 页（第一页）
-            pix = page.get_pixmap(dpi=250)        # 分辨率你可以调高或调低
+            page = doc_pdf.load_page(0)
+            pix = page.get_pixmap(dpi=250)
             tmp_dir = tempfile.gettempdir()
             image_path = os.path.join(tmp_dir, "dsc_curve_tmp.png")
             pix.save(image_path)
             doc_pdf.close()
         except Exception as e:
             print(f"[figure] 渲染 PDF 出错: {e}")
-            return
+            return None
     else:
         print(f"[figure] 不支持的文件类型: {pdf_path}")
-        return
+        return None
 
-    # 决定插入位置：Discussion 最后一段后面；
-    # 如果没有 discussion_paras，就粗暴地在文档最后插。
+    # 锚点：有 discussion_paras 就接在最后一段后，否则接在整个文档最后
     if discussion_paras:
         last_para = discussion_paras[-1]
-        parent = last_para._p.getparent()
-        idx = parent.index(last_para._p) + 1
     else:
-        parent = doc.paragraphs[-1]._p.getparent()
-        idx = len(parent)
+        last_para = doc.paragraphs[-1]
 
-    # 计算“页面内容区”的最大宽度
+    parent = last_para._p.getparent()
+    idx = parent.index(last_para._p) + 1
+
     section = doc.sections[0]
     max_width = section.page_width - section.left_margin - section.right_margin
-    # 如果觉得太宽，可以打一折，比如 90%
     max_width = int(max_width * 0.9)
 
-    # 插入图片段落（居中）
+    # 图片段落
     fig_para = doc.add_paragraph()
     fig_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = fig_para.add_run()
-
-    # 关键：用 page_width - margin 作为 width，不再写死 Inches(4.5)
     run.add_picture(image_path, width=max_width)
-
     parent.insert(idx, fig_para._p)
     idx += 1
 
-    # 插入图注段落（居中）
-    # caption_text = f"Figure {figure_number}. DSC test curve of {sample_name}"
-
-    # 用 pdf 文件名（去掉后缀）作为 sample name
-    pdf_basename = os.path.splitext(os.path.basename(pdf_path))[0]
-    caption_text = f"Figure {figure_number}. DSC test curve of {pdf_basename}"
-    
+    # 图注段落 —— 这里改成用 sample_name
+    caption_text = f"Figure {figure_number}. DSC test curve of {sample_name}"
     cap_para = doc.add_paragraph(caption_text)
     cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     parent.insert(idx, cap_para._p)
+
+    # 把图注段落返回，后续插下一张图时可以接在它后面
+    return cap_para
+
+def _fill_samples_table(table, samples: List[SampleItem]):
+    """
+    将所有样品的 manual / auto 信息写入“样品信息(SAMPLES)”表格。
+    约定：表格中有一行包含 {{Sample_id}} / {{Sample_name}} / {{Nature}} / {{Assign_to}}，
+    这一行作为模板行，每个样品占一行。
+    """
+    if not samples:
+        return
+
+    # 1. 找到包含占位符的“模板行”
+    template_row = None
+    for row in table.rows:
+        row_text = "||".join(cell.text for cell in row.cells)
+        if "{{Sample_id}}" in row_text or "{{Sample_name}}" in row_text:
+            template_row = row
+            break
+
+    if template_row is None:
+        # 没有找到样品行，占位符可能没放在这个表里
+        return
+
+    # ❶ 先备份“原始模板行”的 XML（此时里面还是占位符，格式完整）
+    tpl_tr_template = deepcopy(template_row._tr)
+
+    def _fill_one_row(row, sample: SampleItem):
+        mf = sample.manual_fields
+        af = sample.auto_fields
+
+        # 每个样品自己的 mapping
+        row_mapping = {
+            "{{Sample_id}}": mf.sample_id or "",
+            "{{Sample_name}}": (af.sample_name or sample.name or ""),
+            "{{Nature}}": mf.nature or "",
+            "{{Assign_to}}": mf.assign_to or "",
+        }
+
+        for cell in row.cells:
+            _replace_in_paragraphs(cell.paragraphs, row_mapping)
+
+    # ❷ 遍历所有样品：
+    #    - 第一个样品：直接用模板行
+    #    - 之后的样品：克隆模板行，再填数据
+    for idx, sample in enumerate(samples):
+        if idx == 0:
+            row = template_row
+        else:
+            new_tr = deepcopy(tpl_tr_template)
+            table._tbl.append(new_tr)
+            row = table.rows[-1]
+
+        _fill_one_row(row, sample)
 
 def fill_template_with_mapping(
     template_path: str,
@@ -242,6 +280,7 @@ def fill_template_with_mapping(
     discussion_text: str = "",
     pdf_path: Optional[str] = None,
     figure_number: str = "1",
+    samples: Optional[List[SampleItem]] = None,
 ) -> None:
     doc = Document(template_path)
 
@@ -250,19 +289,78 @@ def fill_template_with_mapping(
         k: v for k, v in mapping.items()
         if k != "{{Discussion}}"
     }
-    replace_placeholders_everywhere(doc, mapping_no_disc)
 
-    # 2) Segments 表格
-    if segments:
+    # ---------- A. 找出“样品信息(SAMPLES)”表 ----------
+    sample_table = None
+    if samples:
+        for table in doc.tables:
+            is_sample_table = False
+            for row in table.rows:
+                for cell in row.cells:
+                    text = cell.text
+                    if (
+                        "{{Sample_id}}" in text
+                        or "{{Sample_name}}" in text
+                        or "{{Nature}}" in text
+                        or "{{Assign_to}}" in text
+                    ):
+                        is_sample_table = True
+                        break
+                if is_sample_table:
+                    break
+            if is_sample_table:
+                sample_table = table
+                break
+
+    # ---------- B. Result and Discussion 表格（多样品优先） ----------
+    if samples:
+        # 多样品：一次性把所有 samples 的 segments 写入 Result and Discussion 表
+        fill_segments_table_for_samples(doc, samples)
+    elif segments:
+        # 兼容旧逻辑：仅当前样品
         fill_segments_table(doc, segments, sample_name_for_segments)
 
-    # 3) Discussion：拆成多段
+    # ---------- C. 样品信息(SAMPLES) 表格：按样品数复制模板行 ----------
+    if samples and sample_table is not None:
+        _fill_samples_table(sample_table, samples)
+
+# ---------- D. Discussion 段落 ----------
     inserted_discussion_paras = None
     if discussion_text:
         inserted_discussion_paras = _fill_discussion_paragraph(doc, discussion_text)
 
-    # 4) 在 Discussion 后面插入 pdf 图和图注
-    if pdf_path and os.path.exists(pdf_path):
+    # ---------- E. 在 Discussion 后插入图像和图注 ----------
+    # 多样品优先：对每个样品分别插图，自动编号
+    if samples:
+        anchor_paras = inserted_discussion_paras   # 当前插图的锚点
+        fig_idx = 1
+        for s in samples:
+            if not s.pdf_path or not os.path.exists(s.pdf_path):
+                continue
+
+            sample_name_for_caption = (
+                s.auto_fields.sample_name
+                or s.manual_fields.sample_id
+                or s.name
+                or ""
+            )
+            if not sample_name_for_caption:
+                sample_name_for_caption = mapping_no_disc.get("{{Sample_name}}", "")
+
+            cap_para = _insert_dsc_figure_after_discussion(
+                doc,
+                pdf_path=s.pdf_path,
+                figure_number=str(fig_idx),
+                sample_name=sample_name_for_caption,
+                discussion_paras=anchor_paras,
+            )
+            if cap_para is not None:
+                # 下一个 figure 接在这次图注后面
+                anchor_paras = [cap_para]
+                fig_idx += 1
+
+    # 兼容旧逻辑：只有一个 pdf_path、没有 samples 传进来时
+    elif pdf_path and os.path.exists(pdf_path):
         sample_name = mapping_no_disc.get("{{Sample_name}}", "")
         _insert_dsc_figure_after_discussion(
             doc,
@@ -272,6 +370,8 @@ def fill_template_with_mapping(
             discussion_paras=inserted_discussion_paras,
         )
 
+    # ---------- F. 最后再做一次全局占位符替换 ----------
+    replace_placeholders_everywhere(doc, mapping_no_disc)
     doc.save(output_path)
 
 
@@ -393,57 +493,119 @@ def _merge_down_same_text(table, start_row: int, end_row: int, col_idx: int) -> 
         merged = top_cell.merge(bottom_cell)
         merged.text = current_text
 
+def _merge_method_within_sample(table, start_row: int, end_row: int,
+                                sample_col: int, method_col: int) -> None:
+    """
+    只在“同一个 Sample 且 Test method 文本相同”的连续行里合并 method 列。
+    不会跨样品合并。
+    """
+    if start_row >= end_row:
+        return
 
-def fill_segments_table(doc: Document, segments: List[DscSegment], sample_label: str) -> None:
+    current_sample = table.cell(start_row, sample_col).text
+    current_method = table.cell(start_row, method_col).text
+    group_start = start_row
+
+    for r in range(start_row + 1, end_row + 1):
+        sample_text = table.cell(r, sample_col).text
+        method_text = table.cell(r, method_col).text
+
+        # 只要样品变了，或者方法变了，就结束上一个分组
+        if sample_text != current_sample or method_text != current_method:
+            if r - 1 > group_start and current_method != "":
+                top_cell = table.cell(group_start, method_col)
+                bottom_cell = table.cell(r - 1, method_col)
+                merged = top_cell.merge(bottom_cell)
+                merged.text = current_method
+            # 开启新组
+            current_sample = sample_text
+            current_method = method_text
+            group_start = r
+
+    # 处理最后一组
+    if end_row > group_start and current_method != "":
+        top_cell = table.cell(group_start, method_col)
+        bottom_cell = table.cell(end_row, method_col)
+        merged = top_cell.merge(bottom_cell)
+        merged.text = current_method
+
+
+def _build_segment_rows_for_samples(samples: List[SampleItem]) -> List[Dict[str, str]]:
     """
-    根据 segments 动态生成表格行。
-    模板中只需要一行包含 {{SEG_*}} 占位符的“模板行”。
-    - sample_label：用来显示在第一列（通常为 Sample name）。
+    把多个样品的 segments 全部摊平成一张表的行：
+    SEG_SAMPLE 列用当前样品名 / 样品号。
     """
-    if not segments:
+    all_rows: List[Dict[str, str]] = []
+    for sample in samples:
+        if not sample.segments:
+            continue
+
+        label = (
+            sample.auto_fields.sample_name
+            or sample.manual_fields.sample_id
+            or sample.name
+            or ""
+        )
+        all_rows.extend(_build_segment_rows(sample.segments, label))
+    return all_rows
+
+
+def _fill_segment_rows_to_table(doc: Document, rows_data: List[Dict[str, str]]) -> None:
+    """
+    把已经准备好的 SEG_* 行数据写入模板中的 Result and Discussion 表格。
+    模板里只需要一行带 {{SEG_*}} 的模板行。
+    """
+    if not rows_data:
         return
 
     table, tpl_row_idx = _find_segment_template_row(doc)
     if table is None:
         return
 
-    rows_data = _build_segment_rows(segments, sample_label)
-    if not rows_data:
-        return
-
-    # 1. 备份“原始模板行” XML（里面仍然是 {{SEG_*}}）
     tpl_row = table.rows[tpl_row_idx]
     tpl_tr_template = deepcopy(tpl_row._tr)
 
-    # 2. 第一条数据直接用当前这一行
+    # 第一条数据直接使用模板行
     _fill_row_with_data(tpl_row, rows_data[0])
 
-    # 3. 后续数据：基于“原始模板行”克隆，然后替换
+    # 后面的数据：基于“原始模板行”克隆
     for data in rows_data[1:]:
         new_tr = deepcopy(tpl_tr_template)
         table._tbl.append(new_tr)
         new_row = table.rows[-1]
         _fill_row_with_data(new_row, data)
 
-    # 4. 合并相同文本的单元格
+    # 合并 Sample / Test method 列相同文本的单元格，并居中
     start_row = tpl_row_idx
     end_row = tpl_row_idx + len(rows_data) - 1
 
-    # 假设你的表格第一列是 Sample，第二列是 Test method：
     SAMPLE_COL = 0
     METHOD_COL = 1
 
     _merge_down_same_text(table, start_row, end_row, SAMPLE_COL)
-    _merge_down_same_text(table, start_row, end_row, METHOD_COL)
+    _merge_method_within_sample(table, start_row, end_row, SAMPLE_COL, METHOD_COL)
 
-        # 5. 设置合并后单元格的对齐方式为“居中”（水平 + 垂直）
     for r in range(start_row, end_row + 1):
         for c in (SAMPLE_COL, METHOD_COL):
             cell = table.cell(r, c)
-            # 垂直居中
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            # 水平居中（防止某些样式没设）
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 
+def fill_segments_table_for_samples(doc: Document, samples: List[SampleItem]) -> None:
+    """
+    多样品版本：把所有样品的 segments 一次性写入 Result and Discussion 表。
+    """
+    rows_data = _build_segment_rows_for_samples(samples)
+    _fill_segment_rows_to_table(doc, rows_data)
+
+
+def fill_segments_table(doc: Document, segments: List[DscSegment], sample_label: str) -> None:
+    """
+    兼容单样品的旧逻辑：只用当前 segments + sample_label。
+    """
+    if not segments:
+        return
+    rows_data = _build_segment_rows(segments, sample_label)
+    _fill_segment_rows_to_table(doc, rows_data)
