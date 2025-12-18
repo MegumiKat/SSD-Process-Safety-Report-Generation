@@ -6,7 +6,7 @@ from typing import Optional, List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
-    QMessageBox, QScrollArea, QSizePolicy, QFrame
+    QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor, QPixmap, QIcon
@@ -14,9 +14,10 @@ from pathlib import Path
 
 from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
 from src.utils.parser_dsc import parse_dsc_txt_basic, parse_dsc_segments
-from src.models.models import DscBasicInfo, DscSegment
+from src.models.models import DscBasicInfo, DscSegment, SampleItem
 from src.utils.templating import fill_template_with_mapping
 from src.utils.dsc_text import generate_dsc_summary
+from src.ui.dialog_add_sample import AddSampleDialog
 
 
 class MainWindow(QMainWindow):
@@ -35,6 +36,13 @@ class MainWindow(QMainWindow):
         self.parsed_segments: Optional[List[DscSegment]] = None
         self.segment_widgets: list[dict] = []
         self.confirmed: bool = False  # 是否点击过“确认数据”
+        # 多样品管理
+        self.samples: list[SampleItem] = []
+        self.current_sample_id: Optional[int] = None
+        self._next_sample_id: int = 1  # 用于给 SampleItem 分配唯一 id
+
+        # 手动样品表单：sample_id -> { "sample_id": QLineEdit, "nature": QLineEdit, "assign_to": QLineEdit }
+        self.sample_manual_widgets: dict[int, dict[str, QLineEdit]] = {}
 
         # 日志内部结构：文件日志 / 当前确认块 / 历史生成块
         self.file_logs: List[str] = []       # html 字符串
@@ -72,38 +80,112 @@ class MainWindow(QMainWindow):
             )
             return line
 
-        # ---------- 顶部：公司 Logo + 程序标题 ----------
+        # ---------- 顶部：左侧 Logo + 标题，右侧 Template + Output ----------
         header_widget = QWidget()
         header_layout = QHBoxLayout(header_widget)
         header_layout.setContentsMargins(8, 8, 8, 8)
 
-        # 左侧：Logo
+        # ===== 左侧：Logo + 标题 =====
+        left_header = QWidget()
+        left_header_layout = QHBoxLayout(left_header)
+        left_header_layout.setContentsMargins(0, 0, 0, 0)
+        left_header_layout.setSpacing(8)
+
+        target_height = 80  # 统一一个高度，避免 LOGO 不存在时报错
         logo_label = QLabel()
         if os.path.exists(LOGO_PATH):
             pixmap = QPixmap(str(LOGO_PATH))
             if not pixmap.isNull():
-                target_height= 80
-                # 控制 logo 高度，比如 40 像素，等比缩放
                 logo_label.setPixmap(
                     pixmap.scaledToHeight(
                         target_height,
                         Qt.TransformationMode.SmoothTransformation
                     )
                 )
-        # 给一点固定高度，即使没图也不至于崩版
+        # 即使没有图片，也给个固定高度，避免布局塌陷
         logo_label.setMinimumHeight(target_height)
-        logo_label.setMaximumHeight(target_height + 10) 
-        header_layout.addWidget(logo_label)
+        logo_label.setMaximumHeight(target_height + 10)
+        left_header_layout.addWidget(logo_label)
 
-        # 右侧：程序标题
         title_label = QLabel("DSC Reports Generation Tool")
         title_label.setObjectName("AppTitle")
-        header_layout.addWidget(title_label)
+        left_header_layout.addWidget(title_label)
+        left_header_layout.addStretch(1)
+
+        # ===== 右侧：Template + Output =====
+        right_header = QWidget()
+        right_header_layout = QVBoxLayout(right_header)
+        right_header_layout.setContentsMargins(0, 0, 0, 0)
+        right_header_layout.setSpacing(4)
+
+        # --- 第一行：模板名称（Template 行：Label | ...... | [ value_box ] [ 按钮 ]） ---
+        row_tpl = QHBoxLayout()
+        lbl_tpl = QLabel("Template:")
+        lbl_tpl.setObjectName("HeaderLabel")
+
+        # 显示模板文件名的 label（右对齐）
+        self.label_tpl = QLabel(os.path.basename(self.template_path))
+        self.label_tpl.setObjectName("HeaderValue")
+        self.label_tpl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        # 和 Output 一样，用一个小 box 包住 value，控制宽度和边框样式
+        self.template_box = QWidget()
+        self.template_box.setObjectName("TemplateBox")
+        self.template_box.setFixedWidth(260)  # 和 OutputBox 一样宽
+
+        tpl_box_layout = QHBoxLayout(self.template_box)
+        tpl_box_layout.setContentsMargins(6, 0, 6, 0)
+        tpl_box_layout.setSpacing(4)
+        tpl_box_layout.addWidget(self.label_tpl)
+
+        # 预留 Change Template 按钮（功能暂不实现）
+        btn_tpl = QPushButton("Change")
+        btn_tpl.clicked.connect(self.choose_template)
+
+        row_tpl.addWidget(lbl_tpl)
+        # row_tpl.addStretch(1)                  # 中间撑开
+        row_tpl.addSpacing(4) 
+        row_tpl.addWidget(self.template_box)   # value box 列
+        row_tpl.addWidget(btn_tpl)             # 按钮列
+
+        # --- 第二行：输出路径 ---
+        row_out = QHBoxLayout()
+        lbl_out = QLabel("Output:")
+        lbl_out.setObjectName("HeaderLabel")
+
+        self.output_box = QWidget()
+        self.output_box.setObjectName("OutputBox")
+        # 让显示框本身更小一点
+        self.output_box.setFixedWidth(260)
+
+        out_layout = QHBoxLayout(self.output_box)
+        out_layout.setContentsMargins(6, 0, 6, 0)
+        out_layout.setSpacing(4)
+
+        self.output_label = QLabel("< None >")
+        self.output_label.setObjectName("HeaderValue")
+        self.output_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._set_output_empty_style()
+        out_layout.addWidget(self.output_label)
+
+        btn_out = QPushButton("Choose")
+        btn_out.clicked.connect(self.choose_output)
+
+        row_out.addWidget(lbl_out)
+        # row_out.addStretch(1)                         # 中间撑开
+        row_out.addSpacing(4)
+        row_out.addWidget(self.output_box, 0)         # 显示框靠右，宽度固定
+        row_out.addWidget(btn_out, 0)                 # 按钮在最右
+
+        right_header_layout.addLayout(row_tpl)
+        right_header_layout.addLayout(row_out)
+
+        # ---- 把左右两块放进 header_layout ----
+        header_layout.addWidget(left_header, 2)
         header_layout.addStretch(1)
+        header_layout.addWidget(right_header, 3)
 
         root_layout.addWidget(header_widget)
-
-        # ---------- 分割线（虚线） ----------
         root_layout.addWidget(_create_separator("h"))
 
         # ---------- 中间主体：左右分栏 ----------
@@ -117,100 +199,33 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(right_layout, 2)
 
         # ---------- 左侧：文件选择区域 ----------
-        file_layout = QVBoxLayout()
+        # ---------- 左侧：Samples 大矩形（带滚动 + Add Sample 按钮） ----------
+        sample_group = QWidget()
+        sample_group.setObjectName("SampleGroup")
+        sample_group_layout = QVBoxLayout(sample_group)
+        sample_group_layout.setContentsMargins(8, 8, 8, 8)
+        sample_group_layout.setSpacing(6)
 
-        # 伪输入框：一个有边框的容器，里面放气泡
-        def _create_chip_box():
-            box = QWidget()
-            box.setObjectName("FileChipBox")
-            layout = QHBoxLayout(box)
-            layout.setContentsMargins(6, 2, 6, 2)
-            layout.setSpacing(4)
-            layout.addStretch()  # 让气泡靠左
-            return box, layout
+        lbl_samples = QLabel("Samples")
+        lbl_samples.setObjectName("sectionTitle")
+        sample_group_layout.addWidget(lbl_samples)
 
-        def _new_path_edit() -> QLineEdit:
-            e = QLineEdit()
-            e.setReadOnly(True)
-            e.setMinimumWidth(350)
-            e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            return e
+        # 滚动区域
+        self.sample_scroll = QScrollArea()
+        self.sample_scroll.setWidgetResizable(True)
 
-        # 小工具：生成“气泡容器”（带水平布局 + stretch）
-        def _new_chip_container():
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(4)
-            layout.addStretch()  # 保证气泡靠左
-            return container, layout
+        self.sample_list_container = QWidget()
+        self.sample_list_layout = QVBoxLayout(self.sample_list_container)
+        self.sample_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.sample_list_layout.setSpacing(8)
 
-        # ===== TXT 行：多个 txt 文件 + 气泡显示 =====
-        h_txt = QHBoxLayout()
-        lbl_txt = QLabel("DSC Result txt:")
+        self.sample_scroll.setWidget(self.sample_list_container)
+        sample_group_layout.addWidget(self.sample_scroll)
 
-        self.txt_chip_box, self.txt_chip_layout = _create_chip_box()
+        left_layout.addWidget(sample_group, stretch=1)
 
-        btn_txt = QPushButton("Add TXT")
-        btn_txt.clicked.connect(self.choose_txt)
-
-        h_txt.addWidget(lbl_txt)
-        h_txt.addWidget(self.txt_chip_box, 1)
-        h_txt.addWidget(btn_txt)
-        file_layout.addLayout(h_txt)
-
-        # 初始化 txt 文件列表
-        self.txt_files: list[str] = []
-
-        # ===== PDF 行：多个 pdf 文件 + 气泡显示 =====
-        h_pdf = QHBoxLayout()
-        lbl_pdf = QLabel("Curve Graph:")
-
-        # 用伪输入框容器来承载气泡
-        self.pdf_chip_box, self.pdf_chip_layout = _create_chip_box()
-
-        btn_pdf = QPushButton("Add PDF")
-        btn_pdf.clicked.connect(self.choose_pdf)
-
-        h_pdf.addWidget(lbl_pdf)
-        h_pdf.addWidget(self.pdf_chip_box, 1)
-        h_pdf.addWidget(btn_pdf)
-        file_layout.addLayout(h_pdf)
-
-        # 初始化 pdf 文件列表
-        self.pdf_files: list[str] = []
-
-        # ===== 输出文件（保持单个路径框） =====
-        h_out = QHBoxLayout()
-        lbl_out = QLabel("Output Report")
-
-        # 伪输入框 + label
-        self.output_box = QWidget()
-        self.output_box.setObjectName("OutputBox")
-        out_layout = QHBoxLayout(self.output_box)
-        out_layout.setContentsMargins(6, 0, 6, 0)
-        out_layout.setSpacing(4)
-
-        self.output_label = QLabel("No output file selected")
-        out_layout.addWidget(self.output_label)
-
-        btn_out = QPushButton("Choose Output Path")
-        btn_out.clicked.connect(self.choose_output)
-
-        h_out.addWidget(lbl_out)
-        h_out.addWidget(self.output_box, 1)
-        h_out.addWidget(btn_out)
-        file_layout.addLayout(h_out)
-
-        # 4. 模板路径显示（默认，只显示文件名）
-        h_tpl = QHBoxLayout()
-        self.label_tpl = QLabel(os.path.basename(self.template_path))
-        lbl_tpl = QLabel("Current Template:")
-        h_tpl.addWidget(lbl_tpl)
-        h_tpl.addWidget(self.label_tpl)
-        file_layout.addLayout(h_tpl)
-
-        left_layout.addLayout(file_layout)
+        # 构建初始的样品列表 UI（只有一个“Add Sample”按钮）
+        self._rebuild_sample_list_ui()
 
         # ---------- 左侧：操作按钮 ----------
         h_buttons = QHBoxLayout()
@@ -226,7 +241,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(_create_separator("h"))
 
         # ---------- 左侧：手动输入区域（黄色部分） ----------
-                # ---------- 左侧：手动输入区域（Request / Sample 两个独立块，每个有自己的 scroll） ----------
+        # ---------- 左侧：手动输入区域（Request / Sample 两个独立块，每个有自己的 scroll） ----------
 
         # 通用：单行输入组件
         def _new_input() -> QLineEdit:
@@ -250,10 +265,6 @@ class MainWindow(QMainWindow):
         self.input_request_number = _new_input()
         self.input_project_account = _new_input()
         self.input_deadline = _new_input()
-
-        self.input_sample_id = _new_input()
-        self.input_nature = _new_input()
-        self.input_assign_to = _new_input()
         self.input_test_date = _new_input()
 
         self.input_receive_date = _new_input()
@@ -306,13 +317,16 @@ class MainWindow(QMainWindow):
         scroll_sample = QScrollArea()
         scroll_sample.setWidgetResizable(True)
         sample_container = QWidget()
-        self.sample_form = QFormLayout(sample_container)
 
-        _add_form_row(self.sample_form, "Sample Id:", self.input_sample_id)
-        _add_form_row(self.sample_form, "Nature:", self.input_nature)
-        _add_form_row(self.sample_form, "Assign To:", self.input_assign_to)
+        # 每个样品一块，竖着排
+        self.sample_manual_layout = QVBoxLayout(sample_container)
+        self.sample_manual_layout.setContentsMargins(0, 0, 0, 0)
+        self.sample_manual_layout.setSpacing(8)
 
         scroll_sample.setWidget(sample_container)
+
+        # 初始化一次（此时还没有样品，会显示一个提示）
+        self._rebuild_manual_sample_forms()
 
         # ---------- 把两个滚动块 + 中间竖线加入水平布局 ----------
         manual_hbox.addWidget(scroll_request, 1)
@@ -322,12 +336,48 @@ class MainWindow(QMainWindow):
         # 最终把整个手动输入模块加到左侧主布局
         left_layout.addWidget(manual_block, stretch=1)
         
+        # ---------- 右侧：顶部标签栏 Auto / Log ----------
+        right_top_bar = QHBoxLayout()
+        right_top_bar.setContentsMargins(0, 0, 0, 0)
+        right_top_bar.setSpacing(8)
 
-        # ---------- 右侧：自动识别结果（可修改） ----------
+        # 左侧两个「标签按钮」
+        self.btn_tab_auto = QPushButton("Auto")
+        self.btn_tab_log = QPushButton("Log")
+        self.btn_tab_auto.setCheckable(True)
+        self.btn_tab_log.setCheckable(True)
+        self.btn_tab_auto.setObjectName("RightTabButton")
+        self.btn_tab_log.setObjectName("RightTabButton")
+        self.btn_tab_auto.setChecked(True)  # 默认 Auto
+
+        self.btn_tab_auto.clicked.connect(lambda: self._switch_right_tab("auto"))
+        self.btn_tab_log.clicked.connect(lambda: self._switch_right_tab("log"))
+
+        right_top_bar.addWidget(self.btn_tab_auto)
+        right_top_bar.addWidget(self.btn_tab_log)
+
+        right_top_bar.addStretch(1)
+
+        # 右上角「动态 actions」区域：Auto 时显示样品切换，Log 时显示 Clear
+        self.right_top_actions = QHBoxLayout()
+        self.right_top_actions.setContentsMargins(0, 0, 0, 0)
+        self.right_top_actions.setSpacing(4)
+        right_top_bar.addLayout(self.right_top_actions)
+
+        right_layout.addLayout(right_top_bar)
+
+        # ---------- 右侧：内容区，用 QStackedWidget 切换 Auto / Log ----------
+        self.right_stack = QStackedWidget()
+        right_layout.addWidget(self.right_stack, stretch=1)
+        # ====== Page 0: Auto（自动识别 + Segments） ======
+        auto_page = QWidget()
+        auto_page_layout = QVBoxLayout(auto_page)
+        auto_page_layout.setContentsMargins(0, 0, 0, 0)
+        auto_page_layout.setSpacing(0)
+
         auto_scroll = QScrollArea()
         auto_scroll.setWidgetResizable(True)
         auto_container = QWidget()
-        # 外层垂直布局：上半部分是原来的自动字段，下半部分放 segments
         auto_vbox = QVBoxLayout(auto_container)
         auto_form = QFormLayout()
         auto_vbox.addLayout(auto_form)
@@ -359,36 +409,38 @@ class MainWindow(QMainWindow):
         _add_form_row(auto_form, "Temp.Calib.:", self.auto_temp_calib)
         _add_form_row(auto_form, "End Date:", self.auto_end_date)
 
-        # ===== 新增：Segments 自动识别区域 =====
+        # Segments 区域
         seg_title = QLabel("Segments:")
         auto_vbox.addWidget(seg_title)
 
-        # 这个 layout 里后面会动态塞每个 segment 的行
         self.segment_area_layout = QVBoxLayout()
         auto_vbox.addLayout(self.segment_area_layout)
 
         auto_scroll.setWidget(auto_container)
-        right_layout.addWidget(auto_scroll, stretch=1)
+        auto_page_layout.addWidget(auto_scroll)
 
-        right_layout.addWidget(_create_separator("h"))
+        self.right_stack.addWidget(auto_page)  # index 0 = Auto
 
-        # ---------- 右侧：日志 + 清空按钮 ----------
-        log_header_layout = QHBoxLayout()
-        lbl_log = QLabel("Log:")
-        log_header_layout.addWidget(lbl_log)
-        btn_clear_log = QPushButton("Clear")
-        btn_clear_log.setFixedWidth(60)
-        btn_clear_log.clicked.connect(self.clear_log)
-        log_header_layout.addWidget(btn_clear_log)
-        log_header_layout.addStretch(1)
-        right_layout.addLayout(log_header_layout)
+        # ====== Page 1: Log ======
+        log_page = QWidget()
+        log_layout = QVBoxLayout(log_page)
+        log_layout.setContentsMargins(0, 0, 0, 0)
+        log_layout.setSpacing(0)
 
         self.log = QTextEdit()
         self.log.setReadOnly(True)
         self.log.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self.log.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
-        right_layout.addWidget(self.log, stretch=1)
+        log_layout.addWidget(self.log)
+
+        self.right_stack.addWidget(log_page)  # index 1 = Log
+
+        # 默认显示 Auto 页
+        self.right_stack.setCurrentIndex(0)
+        # 初始化右上角 actions（Auto: 样品切换；Log: Clear）
+        self._rebuild_right_top_actions()
+
 
         # 启动时检查模板
         if not os.path.exists(self.template_path):
@@ -416,84 +468,477 @@ class MainWindow(QMainWindow):
         self.confirm_block = None
         self.generate_logs.clear()
         self.log.clear()
+        # 可选：清空日志后切回 Auto 页
+        self._switch_right_tab("auto")
 
     def _add_file_log(self, html_msg: str):
         self.file_logs.append(html_msg)
         self.render_log()
 
+    def _set_output_empty_style(self):
+        """未选择输出文件时：显示红色 None。"""
+        self.output_label.setStyleSheet("color: #ff6666;")  # 红色
+        self.output_label.setText("< None >")
 
-    def _refresh_file_chips(self, kind: str):
+    def _set_output_filled_style(self):
+        """已选择输出文件时：显示绿色文件名。"""
+        self.output_label.setStyleSheet("color: #33cc33;")  # 绿色
+
+        # ===== 样品工具方法 =====
+    def _get_current_sample(self) -> Optional[SampleItem]:
+        """根据 current_sample_id 找到当前样品对象。"""
+        if self.current_sample_id is None:
+            return None
+        for s in self.samples:
+            if s.id == self.current_sample_id:
+                return s
+        return None
+
+    def _get_current_sample_index(self) -> int:
+        """返回当前样品在 self.samples 中的下标，找不到则 -1。"""
+        if self.current_sample_id is None or not self.samples:
+            return -1
+        for idx, s in enumerate(self.samples):
+            if s.id == self.current_sample_id:
+                return idx
+        return -1
+
+    def _switch_right_tab(self, tab: str):
         """
-        根据当前文件列表刷新 txt/pdf 的气泡显示。
-        kind: "txt" 或 "pdf"
+        在 Auto / Log 两个视图之间切换。
         """
-        if kind == "txt":
-            layout = self.txt_chip_layout
-            files = self.txt_files
-            remove_slot = self._remove_txt_file
+        if tab == "auto":
+            self.right_stack.setCurrentIndex(0)
+            self.btn_tab_auto.setChecked(True)
+            self.btn_tab_log.setChecked(False)
         else:
-            layout = self.pdf_chip_layout
-            files = self.pdf_files
-            remove_slot = self._remove_pdf_file
+            self.right_stack.setCurrentIndex(1)
+            self.btn_tab_auto.setChecked(False)
+            self.btn_tab_log.setChecked(True)
 
-        # 只保留最后一个 stretch，其余 item 清空
-        while layout.count() > 1:
-            item = layout.takeAt(0)
+        self._rebuild_right_top_actions()
+
+    def _rebuild_right_top_actions(self):
+        """
+        根据当前右侧 tab（Auto / Log）重建右上角按钮区域：
+        - Auto: Sample X/N + Prev / Next
+        - Log: Clear 按钮
+        """
+        # 清空右上角 layout
+        while self.right_top_actions.count():
+            item = self.right_top_actions.takeAt(0)
             w = item.widget()
             if w is not None:
                 w.deleteLater()
 
-        # 没有文件时，可以放一个“无文件”灰字占位（可选）
-        if not files:
-            placeholder = QLabel("No file selected")
-            placeholder.setStyleSheet("color: #777777;")
-            layout.insertWidget(layout.count() - 1, placeholder)
+        current_index = self.right_stack.currentIndex()
+
+        # ===== Auto 页 =====
+        if current_index == 0:
+            if not self.samples:
+                return
+
+            idx = self._get_current_sample_index()
+            total = len(self.samples)
+            if idx < 0:
+                info_label = QLabel("No sample selected")
+                self.right_top_actions.addWidget(info_label)
+                return
+
+            label = QLabel(f"Sample {idx + 1} / {total}")
+            self.right_top_actions.addWidget(label)
+
+            btn_prev = QPushButton("<")
+            btn_next = QPushButton(">")
+
+            btn_prev.setFixedWidth(28)
+            btn_next.setFixedWidth(28)
+
+            btn_prev.clicked.connect(self._goto_prev_sample)
+            btn_next.clicked.connect(self._goto_next_sample)
+
+            if idx <= 0:
+                btn_prev.setEnabled(False)
+            if idx >= total - 1:
+                btn_next.setEnabled(False)
+
+            self.right_top_actions.addWidget(btn_prev)
+            self.right_top_actions.addWidget(btn_next)
+
+        # ===== Log 页 =====
+        else:
+            btn_clear = QPushButton("Clear")
+            btn_clear.setFixedWidth(60)
+            btn_clear.clicked.connect(self.clear_log)
+            self.right_top_actions.addWidget(btn_clear)
+
+    def _goto_prev_sample(self):
+        """右上角 < 按钮：切到前一个样品。"""
+        if not self.samples:
+            return
+        idx = self._get_current_sample_index()
+        if idx <= 0:
+            return
+        new_sample = self.samples[idx - 1]
+        self.on_sample_card_clicked(new_sample.id)
+        self._rebuild_manual_sample_forms()
+        self._rebuild_sample_list_ui()
+        self._rebuild_right_top_actions()
+
+    def _goto_next_sample(self):
+        """右上角 > 按钮：切到后一个样品。"""
+        if not self.samples:
+            return
+        idx = self._get_current_sample_index()
+        if idx < 0 or idx >= len(self.samples) - 1:
+            return
+        new_sample = self.samples[idx + 1]
+        self.on_sample_card_clicked(new_sample.id)
+        self._rebuild_manual_sample_forms()
+        self._rebuild_sample_list_ui()
+        self._rebuild_right_top_actions()
+
+    def _load_sample_to_ui(self, sample: SampleItem):
+        """
+        把某个样品的数据加载到右侧自动识别 UI：
+        - auto_fields -> 右侧 QLineEdit
+        - segments -> 右侧 Segments 区域
+        """
+        af = sample.auto_fields
+
+        self.auto_sample_name.setText(af.sample_name)
+        self.auto_sample_mass.setText(af.sample_mass)
+        self.auto_operator.setText(af.operator)
+        self.auto_instrument.setText(af.instrument)
+        self.auto_atmosphere.setText(af.atmosphere)
+        self.auto_crucible.setText(af.crucible)
+        self.auto_temp_calib.setText(af.temp_calib)
+        self.auto_end_date.setText(af.end_date)
+
+        # 当前窗口级别的 parsed_info / parsed_segments 指向这个样品
+        self.parsed_info = sample.basic_info
+        self.parsed_segments = sample.segments
+
+        # 根据 segments 重建右侧 segments 编辑 UI
+        self._build_segments_auto_fields(self.parsed_segments or [])
+
+    
+    def _store_ui_to_sample(self, sample: SampleItem):
+        """
+        把右侧自动识别 UI 当前显示的内容，写回到这个样品对象：
+        - QLineEdit -> sample.auto_fields
+        - Segments：调用 _apply_segment_edits 写回 self.parsed_segments（它本身指向 sample.segments）
+        """
+        # 先把 segments 的修改写回 self.parsed_segments（里面是 DscSegment 的引用）
+        self._apply_segment_edits()
+
+        af = sample.auto_fields
+        af.sample_name = self.auto_sample_name.text().strip()
+        af.sample_mass = self.auto_sample_mass.text().strip()
+        af.operator = self.auto_operator.text().strip()
+        af.instrument = self.auto_instrument.text().strip()
+        af.atmosphere = self.auto_atmosphere.text().strip()
+        af.crucible = self.auto_crucible.text().strip()
+        af.temp_calib = self.auto_temp_calib.text().strip()
+        af.end_date = self.auto_end_date.text().strip()
+
+        # segments 已经通过 _apply_segment_edits 更新到 self.parsed_segments 内部
+        # 保证 sample.segments 引用同一个列表即可：
+        sample.segments = self.parsed_segments or []
+
+
+    def _rebuild_sample_list_ui(self):
+        """
+        重新渲染左侧 Samples 区域的内容：
+        - 最上方一个大号的 “Add Sample” 按钮
+        - 下面一排排样品卡片
+        """
+        # 清空现有布局
+        while self.sample_list_layout.count():
+            item = self.sample_list_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        # 1) 顶部 Add Sample 按钮
+        add_btn = QPushButton("+ Add Sample")
+        add_btn.setObjectName("AddSampleButton")
+        add_btn.clicked.connect(self.on_add_sample_clicked)
+        self.sample_list_layout.addWidget(add_btn)
+
+        # 2) 每个已有样品，生成一张卡片（后面第三步详细填充）
+        for sample in self.samples:
+            card = self._create_sample_card(sample)
+            self.sample_list_layout.addWidget(card)
+
+        # 占位 stretch，保证卡片靠上
+        self.sample_list_layout.addStretch(1)
+
+    def _create_sample_card(self, sample: SampleItem) -> QWidget:
+        """
+        用于 Samples 区域的单个样品小卡片：
+        [图标] SampleName   [TXT ✅/❌] [PDF ✅/❌]      [Remove]
+        点击卡片本身 = 选中样品；点击 Remove = 删除该样品。
+        """
+        card = QWidget()
+        card.setObjectName("SampleCard")
+        layout = QHBoxLayout(card)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(8)
+
+        # 左侧一个小图标（你后面可以换成真正的 icon）
+        icon_label = QLabel("🧪")
+        layout.addWidget(icon_label)
+
+        # 中间：样品名
+        name_label = QLabel(sample.name)
+        name_label.setObjectName("SampleNameLabel")
+        layout.addWidget(name_label, 1)
+
+        # TXT 状态
+        txt_status = QLabel("TXT: ✓" if os.path.exists(sample.txt_path) else "TXT: ✗")
+        layout.addWidget(txt_status)
+
+        # PDF 状态
+        if sample.pdf_path:
+            pdf_status = QLabel("PDF: ✓" if os.path.exists(sample.pdf_path) else "PDF: ✗")
+        else:
+            pdf_status = QLabel("PDF: -")
+        layout.addWidget(pdf_status)
+
+        # 右侧空一点
+        layout.addStretch(1)
+
+        # 删除按钮（只删样品，不触发 card 的 mousePressEvent）
+        btn_remove = QPushButton("Remove")
+        btn_remove.setObjectName("SampleRemoveButton")
+        btn_remove.setFixedHeight(22)
+        btn_remove.clicked.connect(lambda _, sid=sample.id: self.on_remove_sample(sid))
+        layout.addWidget(btn_remove)
+
+        # 点击卡片其他区域 = 切换当前样品
+        card.mousePressEvent = lambda event, sid=sample.id: self.on_sample_card_clicked(sid)
+
+        return card
+
+    def on_sample_card_clicked(self, sample_id: int):
+        # 1) 先保存当前样品的 UI 修改
+        current = self._get_current_sample()
+        if current is not None:
+            self._store_ui_to_sample(current)
+
+        # 2) 找到要切换到的样品
+        sample = next((s for s in self.samples if s.id == sample_id), None)
+        if not sample:
             return
 
-        for path in files:
-            chip = QWidget()
-            chip.setObjectName("FileChip")  # 让 QSS 的 FileChip 样式生效
-            chip_layout = QHBoxLayout(chip)
-            chip_layout.setContentsMargins(4, 0, 4, 0)
-            chip_layout.setSpacing(4)
+        self.current_sample_id = sample.id
+        self.txt_path = sample.txt_path
+        self.pdf_path = sample.pdf_path or ""
 
-            name_label = QLabel(os.path.basename(path))
+        # 3) 如果这个样品还没解析过，解析一次；否则直接加载缓存
+        if sample.basic_info is None:
+            self.clear_log()
+            self._parse_sample(sample)
+        else:
+            # 已经有数据：不再重新解析，直接用缓存数据刷新 UI
+            self.parsed_info = sample.basic_info
+            self.parsed_segments = sample.segments
+            self._load_sample_to_ui(sample)
 
-            del_btn = QPushButton("✕")
-            del_btn.setObjectName("FileChipCloseButton")
-            del_btn.setFixedSize(18, 18)
-            del_btn.clicked.connect(lambda _, p=path: remove_slot(p))
+        # 新增：更新右上角导航
+        self._rebuild_right_top_actions()
 
-            chip_layout.addWidget(name_label)
-            chip_layout.addWidget(del_btn)
 
-            layout.insertWidget(layout.count() - 1, chip)
+    def on_remove_sample(self, sample_id: int):
+        """
+        删除一个样品：
+        - 可选：弹出确认
+        - 从 self.samples 中移除
+        - 如果删的是当前样品，切到另一个样品或清空右侧 UI
+        - 重新构建样品列表 UI
+        """
+        # 1) 找到这个样品对象
+        target = next((s for s in self.samples if s.id == sample_id), None)
+        if not target:
+            return
 
-    def _remove_txt_file(self, path: str):
-        if path in self.txt_files:
-            self.txt_files.remove(path)
+        # 2) 弹出确认对话框
+        reply = QMessageBox.question(
+            self,
+            "Remove Sample",
+            f"Are you sure to remove sample:\n\n{target.name} ?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
 
-            # 如果删掉的是当前使用的 txt，就切换到剩余的最后一个，重新解析
-            if self.txt_path == path:
-                self.txt_path = self.txt_files[-1] if self.txt_files else ""
-                self.clear_log()
-                if self.txt_path:
-                    self._parse_txt_and_fill()
-                else:
-                    self.parsed_info = None
-                    self.parsed_segments = None
+        # 3) 从列表中移除
+        self.samples = [s for s in self.samples if s.id != sample_id]
 
-            self._refresh_file_chips("txt")
+        # 4) 如果删的是当前样品，需要决定新的当前样品 & 刷新右侧 UI
+        if self.current_sample_id == sample_id:
+            if self.samples:
+                # 选择一个新的当前样品（这里简单用第一个）
+                new_sample = self.samples[0]
+                self.current_sample_id = new_sample.id
+                self.txt_path = new_sample.txt_path
+                self.pdf_path = new_sample.pdf_path or ""
+                self.parsed_info = new_sample.basic_info
+                self.parsed_segments = new_sample.segments
+                self._load_sample_to_ui(new_sample)
+            else:
+                # 已经没有任何样品了：清空当前状态和右侧 UI
+                self.current_sample_id = None
+                self.txt_path = ""
+                self.pdf_path = ""
+                self.parsed_info = None
+                self.parsed_segments = None
 
-    def _remove_pdf_file(self, path: str):
-        if path in self.pdf_files:
-            self.pdf_files.remove(path)
+                # 清空右侧自动识别文本
+                self.auto_sample_name.clear()
+                self.auto_sample_mass.clear()
+                self.auto_operator.clear()
+                self.auto_instrument.clear()
+                self.auto_atmosphere.clear()
+                self.auto_crucible.clear()
+                self.auto_temp_calib.clear()
+                self.auto_end_date.clear()
+                # 清空 segments UI
+                self._build_segments_auto_fields([])
 
-            if self.pdf_path == path:
-                self.pdf_path = self.pdf_files[-1] if self.pdf_files else ""
+        # 5) 重新绘制左侧样品卡片列表
+        self._rebuild_sample_list_ui()
 
-            self._refresh_file_chips("pdf")
+        # 6) 记一条日志（可选）
+        msg = (
+            f'<span style="color:#ffaa00;">[Sample Removed]</span> '
+            f'{target.name}'
+        )
+        self._add_file_log(msg)
+        self._rebuild_right_top_actions()
 
+
+    def _rebuild_manual_sample_forms(self):
+        """
+        根据 self.samples 重新生成左下 Sample information 区域：
+        每个样品一块：
+        [SampleName 作为小标题]
+        [Sample Id] [Nature] [Assign To] 三个一行
+        """
+        # 清空旧布局
+        while self.sample_manual_layout.count():
+            item = self.sample_manual_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self.sample_manual_widgets.clear()
+
+        if not self.samples:
+            placeholder = QLabel("No samples. Please add samples above.")
+            self.sample_manual_layout.addWidget(placeholder)
+            self.sample_manual_layout.addStretch(1)
+            return
+
+        for sample in self.samples:
+            group = QWidget()
+            group_layout = QVBoxLayout(group)
+            group_layout.setContentsMargins(0, 4, 0, 4)
+            group_layout.setSpacing(4)
+
+            # 标题：Sample name
+            title = QLabel(sample.name)
+            title.setObjectName("SampleManualTitle")
+            group_layout.addWidget(title)
+
+            # 三个字段一行：Sample Id / Nature / Assign To
+            row = QHBoxLayout()
+            row.setSpacing(6)
+
+            edit_sample_id = QLineEdit()
+            edit_nature = QLineEdit()
+            edit_assign_to = QLineEdit()
+
+            # 初始值来自 SampleItem.manual_fields
+            mf = sample.manual_fields
+            edit_sample_id.setText(mf.sample_id)
+            edit_nature.setText(mf.nature)
+            edit_assign_to.setText(mf.assign_to)
+
+            # 可以加 placeholder，方便区分
+            edit_sample_id.setPlaceholderText("Sample Id")
+            edit_nature.setPlaceholderText("Nature")
+            edit_assign_to.setPlaceholderText("Assign To")
+
+            # 宽度策略稍微收紧一点
+            for e in (edit_sample_id, edit_nature, edit_assign_to):
+                e.setMinimumWidth(120)
+                e.setMaximumWidth(200)
+
+            row.addWidget(QLabel("Sample Id:"))
+            row.addWidget(edit_sample_id)
+            row.addWidget(QLabel("Nature:"))
+            row.addWidget(edit_nature)
+            row.addWidget(QLabel("Assign To:"))
+            row.addWidget(edit_assign_to)
+
+            group_layout.addLayout(row)
+            self.sample_manual_layout.addWidget(group)
+
+            # 记录到字典，后面同步用
+            self.sample_manual_widgets[sample.id] = {
+                "sample_id": edit_sample_id,
+                "nature": edit_nature,
+                "assign_to": edit_assign_to,
+            }
+
+        self.sample_manual_layout.addStretch(1)
+
+    def _sync_manual_fields_from_ui(self):
+        """
+        把左下 Sample information 区域当前填写的内容，
+        写回到各自 SampleItem.manual_fields 中。
+        """
+        if not self.samples:
+            return
+
+        for sample in self.samples:
+            widgets = self.sample_manual_widgets.get(sample.id)
+            if not widgets:
+                continue
+            mf = sample.manual_fields
+            mf.sample_id = widgets["sample_id"].text().strip()
+            mf.nature = widgets["nature"].text().strip()
+            mf.assign_to = widgets["assign_to"].text().strip()
+
+    def on_add_sample_clicked(self):
+        dlg = AddSampleDialog(self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # 创建 SampleItem
+        sample = SampleItem(
+            id=self._next_sample_id,
+            name=dlg.sample_name,
+            txt_path=dlg.txt_path,
+            pdf_path=dlg.pdf_path,
+        )
+        self._next_sample_id += 1
+
+        self.samples.append(sample)
+        self.current_sample_id = sample.id
+
+        # 清空 log，解析这个样品（只解析一次）
+        self.clear_log()
+        self._parse_sample(sample)
+
+        # 重新画左侧样品列表 UI
+        self._rebuild_sample_list_ui()
+
+        # 重新画左下 Sample information 区域
+        self._rebuild_manual_sample_forms()
+        self._rebuild_right_top_actions()
 
     def _clear_layout(self, layout):
         """递归清空一个 layout 里的所有控件和子布局。"""
@@ -624,105 +1069,79 @@ class MainWindow(QMainWindow):
 
 
     # ====== 自动解析 txt 并填充右侧 ======
-    def _parse_txt_and_fill(self):
-        if not self.txt_path:
+    def _parse_sample(self, sample: SampleItem):
+        """
+        解析某个样品的 txt，一次性填充：
+        - sample.basic_info
+        - sample.segments
+        - sample.auto_fields（右侧 UI 的初始值）
+        然后刷新当前 UI 到这个样品。
+        """
+        if not sample.txt_path:
             return
 
         try:
-            self.parsed_info = parse_dsc_txt_basic(self.txt_path)
-            info = self.parsed_info
-
+            basic = parse_dsc_txt_basic(sample.txt_path)
+            sample.basic_info = basic
 
             # 2. Segments
             try:
-                self.parsed_segments = parse_dsc_segments(self.txt_path)
+                segments = parse_dsc_segments(sample.txt_path)
             except Exception as e_seg:
-                self.parsed_segments = []
-                msg_seg = f'<span style="color:#ff5555;">[Segments Parsed Failed]</span> {os.path.basename(self.txt_path)} - {e_seg}'
+                segments = []
+                msg_seg = (
+                    f'<span style="color:#ff5555;">[Segments Parsed Failed]</span> '
+                    f'{os.path.basename(sample.txt_path)} - {e_seg}'
+                )
                 self._add_file_log(msg_seg)
 
-            # 填充右侧自动识别字段（可修改）
-            self.auto_sample_name.setText(info.sample_name or "")
-            if info.sample_mass_mg is not None:
-                self.auto_sample_mass.setText(f"{info.sample_mass_mg:.3f} mg")
-            else:
-                self.auto_sample_mass.setText("")
-            self.auto_operator.setText(info.operator or "")
-            self.auto_instrument.setText(info.instrument or "")
-            self.auto_atmosphere.setText(info.atmosphere or "")
-            self.auto_crucible.setText(info.crucible or "")
-            self.auto_temp_calib.setText(info.temp_calib or "")
-            self.auto_end_date.setText(info.end_date or "")
+            sample.segments = segments
 
-            # 3. 构建 segments 编辑区域
-            self._build_segments_auto_fields(self.parsed_segments or [])
+            # 3. 用解析结果初始化 auto_fields
+            af = sample.auto_fields
+            af.sample_name = basic.sample_name or ""
+            if basic.sample_mass_mg is not None:
+                af.sample_mass = f"{basic.sample_mass_mg:.3f} mg"
+            else:
+                af.sample_mass = ""
+            af.operator = basic.operator or ""
+            af.instrument = basic.instrument or ""
+            af.atmosphere = basic.atmosphere or ""
+            af.crucible = basic.crucible or ""
+            af.temp_calib = basic.temp_calib or ""
+            af.end_date = basic.end_date or ""
+
+            # 4. 同步 MainWindow 当前状态
+            self.current_sample_id = sample.id
+            self.txt_path = sample.txt_path
+            self.pdf_path = sample.pdf_path or ""
+            self.parsed_info = sample.basic_info
+            self.parsed_segments = sample.segments
+
+            # 5. 把数据投射到右侧 UI
+            self._load_sample_to_ui(sample)
 
             self.confirmed = False
             self.confirm_block = None  # 重新确认前清空确认块
 
-            msg = f'<span style="color:#33cc33;">[Parsing Successful]</span> {os.path.basename(self.txt_path)}'
+            msg = (
+                f'<span style="color:#33cc33;">[Parsing Successful]</span> '
+                f'{os.path.basename(sample.txt_path)}'
+            )
             self._add_file_log(msg)
 
         except Exception as e:
+            sample.basic_info = None
+            sample.segments = []
             self.parsed_info = None
-            msg = f'<span style="color:#ff5555;">[Parsing Failed]</span> {os.path.basename(self.txt_path)} - {e}'
+            self.parsed_segments = None
+
+            msg = (
+                f'<span style="color:#ff5555;">[Parsing Failed]</span> '
+                f'{os.path.basename(sample.txt_path)} - {e}'
+            )
             self._add_file_log(msg)
             QMessageBox.critical(self, "Error", f"[TXT]Parsing Failed\n{e}")
-
-    # ====== 文件选择 ======
-    def choose_txt(self):
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Choose TXT", "", "Text Files (*.txt);;All Files (*)"
-        )
-        if not paths:
-            return
-
-        added = False
-        for path in paths:
-            if path not in self.txt_files:
-                self.txt_files.append(path)
-                added = True
-
-        if not added:
-            QMessageBox.information(self, "Info", "All selected TXT files are already added.")
-            return
-
-        self.txt_path = self.txt_files[-1]
-
-        self.clear_log()
-        self._parse_txt_and_fill()
-        self._refresh_file_chips("txt")
-
-    def choose_pdf(self):
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Choose PDF", "", "PDF Files (*.pdf);;All Files (*)"
-        )
-        if not paths:
-            return
-
-        added = False
-        for path in paths:
-            if path not in self.pdf_files:
-                self.pdf_files.append(path)
-                added = True
-
-        if not added:
-            QMessageBox.information(self, "Info", "All selected PDF files are already added.")
-            return
-
-        # 当前激活 pdf 用最后一个新增的
-        self.pdf_path = self.pdf_files[-1]
-
-        # 每次 add pdf 清空 log
-        self.clear_log()
-        msg = (
-            f'<span style="color:#33cc33;">[Choosing Successful]</span> '
-            f'{os.path.basename(self.pdf_path)}'
-        )
-        self._add_file_log(msg)
-
-        # 刷新气泡显示（“伪文本框”里就会出现这些 tag）
-        self._refresh_file_chips("pdf")
 
     def choose_output(self):
         path, _ = QFileDialog.getSaveFileName(
@@ -735,12 +1154,24 @@ class MainWindow(QMainWindow):
             # 原来是 self.edit_output.setText(...)
             # 现在改成：
             self.output_label.setText(os.path.basename(path))
+            self._set_output_filled_style()
 
             msg = (
                 f'<span style="color:#33cc33;">[Choosing Successful]</span> '
                 f'Output: {os.path.basename(self.output_path)}'
             )
             self._add_file_log(msg)
+
+    def choose_template(self):
+        """
+        预留：修改模板的逻辑暂未实现。
+        目前只是弹一个提示，确保按钮可点击，不会报错。
+        """
+        QMessageBox.information(
+            self,
+            "Info",
+            "Change Template function is not implemented yet."
+        )
 
     # ====== 确认数据：覆盖当前确认块 ======
     def on_confirm(self):
@@ -752,7 +1183,17 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Tips", "[TXT]Haven't parsed successful")
             return
 
+        # 在生成确认日志之前，先把当前 UI 的修改写回当前样品
+        sample = self._get_current_sample()
+        if sample is not None:
+            self._store_ui_to_sample(sample)
+
         lines = []
+        # 先同步左下 Sample information 区域到 SampleItem.manual_fields
+        self._sync_manual_fields_from_ui()
+        current_sample = self._get_current_sample()
+        mf = current_sample.manual_fields if current_sample is not None else None
+
         lines.append("")
         lines.append("===== Automatically identify fields (final value) =====")
         lines.append("")
@@ -776,12 +1217,15 @@ class MainWindow(QMainWindow):
         lines.append(f"Request Number: {self.input_request_number.text().strip()}")
         lines.append(f"Project Account: {self.input_project_account.text().strip()}")
         lines.append(f"Deadline: {self.input_deadline.text().strip()}")
-        lines.append(f"Sample Id: {self.input_sample_id.text().strip()}")
-        lines.append(f"Nature: {self.input_nature.text().strip()}")
-        lines.append(f"Assign To: {self.input_assign_to.text().strip()}")
         lines.append(f"Test Date: {self.input_test_date.text().strip()}")
         lines.append(f"Receive Date: {self.input_receive_date.text().strip()}")
         lines.append(f"Report Date: {self.input_report_date.text().strip()}")
+
+        lines.append(f"Sample Id: {mf.sample_id if mf else ''}")
+        lines.append(f"Nature: {mf.nature if mf else ''}")
+        lines.append(f"Assign To: {mf.assign_to if mf else ''}")
+
+
         lines.append(f"Request Description: {self.input_request_desc.toPlainText().strip()}")
 
         # 覆盖当前确认块，然后重绘日志
@@ -789,6 +1233,8 @@ class MainWindow(QMainWindow):
         self.confirmed = True
         self.render_log()
         QMessageBox.information(self, "Info", "Compiled Successful. Please review and generate when ready")
+        # 新增：自动切换到 Log 页，方便查看确认内容
+        self._switch_right_tab("log")
 
     # ====== 生成报告 ======
     def on_generate(self):
@@ -812,6 +1258,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Info", "Please confirm and generate")
             return
 
+        # 在生成之前，同步当前 UI -> 当前样品
+        sample = self._get_current_sample()
+        if sample is not None:
+            self._store_ui_to_sample(sample)
+
         # --------- 构造占位符映射：手动输入 + 自动识别（以界面为准） ----------
         mapping: dict[str, str] = {}
 
@@ -825,14 +1276,19 @@ class MainWindow(QMainWindow):
         mapping["{{Project_Account}}"] = self.input_project_account.text().strip()
         mapping["{{Deadline}}"] = self.input_deadline.text().strip()
 
-        mapping["{{Sample_id}}"] = self.input_sample_id.text().strip()
-        mapping["{{Nature}}"] = self.input_nature.text().strip()
-        mapping["{{Assign_to}}"] = self.input_assign_to.text().strip()
-        mapping["{{Test_Date}}"] = self.input_test_date.text().strip()
+        # 先同步左下 Sample information 到各样品
+        self._sync_manual_fields_from_ui()
+        current_sample = self._get_current_sample()
+        mf = current_sample.manual_fields if current_sample is not None else None
 
+        mapping["{{Sample_id}}"] = mf.sample_id if mf else ""
+        mapping["{{Nature}}"] = mf.nature if mf else ""
+        mapping["{{Assign_to}}"] = mf.assign_to if mf else ""
+
+
+        mapping["{{Test_Date}}"] = self.input_test_date.text().strip()
         mapping["{{Receive_Date}}"] = self.input_receive_date.text().strip()
         mapping["{{Report_Date}}"] = self.input_report_date.text().strip()
-
         mapping["{{Request_desc}}"] = self.input_request_desc.toPlainText().strip()
 
         # --- 自动部分（绿色基础字段，来自右侧可编辑栏） ---
@@ -859,9 +1315,13 @@ class MainWindow(QMainWindow):
             self.render_log()
 
         # 表格第一列用哪个作为 Sample ID 显示
+        current_sample = self._get_current_sample()
+        mf = current_sample.manual_fields if current_sample is not None else None
+
         sample_name_for_segments = (
             self.auto_sample_name.text().strip()
-            or self.input_sample_id.text().strip()
+            or (mf.sample_id if mf else "")
+            or (current_sample.name if current_sample else "")
         )
 
         # === 生成 Discussion 文案 ===
@@ -870,7 +1330,6 @@ class MainWindow(QMainWindow):
         else:
             discussion_text = ""
         
-
         figure_number = "1"
 
         try:
@@ -891,6 +1350,8 @@ class MainWindow(QMainWindow):
             self.generate_logs.append(block)
             self.render_log()
             QMessageBox.information(self, "Successful", "Generate Successful!\nCan open word and check")
+            # 新增：生成成功后自动切到 Log 页
+            self._switch_right_tab("log")
         except Exception as e:
             block = (
                 f'<span style="color:#ff5555;">[Generate Failed]</span> '
@@ -899,6 +1360,8 @@ class MainWindow(QMainWindow):
             self.generate_logs.append(block)
             self.render_log()
             QMessageBox.critical(self, "Error", f"Generate Failed\n{e}")
+            # 新增：生成成功后自动切到 Log 页
+            self._switch_right_tab("log")
 
 
 def main():
