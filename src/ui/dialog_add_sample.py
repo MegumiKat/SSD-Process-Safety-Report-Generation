@@ -34,9 +34,13 @@ class AddSampleDialog(QDialog):
         row_name = QHBoxLayout()
         lbl_name = QLabel("Sample Name:")
         self.edit_name = QLineEdit()
+
+        # 橙色字段名
+        orange_style = "color: rgb(255,119,0); font-weight: bold;"
+        lbl_name.setStyleSheet(orange_style)
+
         row_name.addWidget(lbl_name)
         row_name.addWidget(self.edit_name, 1)
-
         main_layout.addLayout(row_name)
 
         # ===== TXT 选择 =====
@@ -45,13 +49,15 @@ class AddSampleDialog(QDialog):
         self.lbl_txt_file = QLabel("No TXT selected")
         self.lbl_txt_file.setObjectName("FileNameLabel")
 
+        # 橙色字段名
+        lbl_txt.setStyleSheet(orange_style)
+
         btn_txt = QPushButton("Add TXT")
         btn_txt.clicked.connect(self.choose_txt)
 
         row_txt.addWidget(lbl_txt)
         row_txt.addWidget(self.lbl_txt_file, 1)
         row_txt.addWidget(btn_txt)
-
         main_layout.addLayout(row_txt)
 
         # ===== PDF 选择 =====
@@ -60,18 +66,21 @@ class AddSampleDialog(QDialog):
         self.lbl_pdf_file = QLabel("No PDF selected")
         self.lbl_pdf_file.setObjectName("FileNameLabel")
 
+        # 橙色字段名
+        lbl_pdf.setStyleSheet(orange_style)
+
         btn_pdf = QPushButton("Add PDF")
         btn_pdf.clicked.connect(self.choose_pdf)
 
         row_pdf.addWidget(lbl_pdf)
         row_pdf.addWidget(self.lbl_pdf_file, 1)
         row_pdf.addWidget(btn_pdf)
-
         main_layout.addLayout(row_pdf)
 
         # ===== 底部按钮：Cancel / Confirm =====
         btn_row = QHBoxLayout()
-        btn_row.addStretch(1)
+        btn_row.setContentsMargins(0, 12, 0, 0)  # 顶部留一点空
+        btn_row.setSpacing(12)                   # 两个按钮之间的间距
 
         btn_cancel = QPushButton("Cancel")
         btn_cancel.clicked.connect(self.reject)
@@ -79,8 +88,11 @@ class AddSampleDialog(QDialog):
         btn_ok = QPushButton("Confirm")
         btn_ok.clicked.connect(self.on_confirm)
 
+        # 左右各一个 stretch，让按钮居中
+        btn_row.addStretch(1)
         btn_row.addWidget(btn_cancel)
         btn_row.addWidget(btn_ok)
+        btn_row.addStretch(1)
 
         main_layout.addLayout(btn_row)
 
