@@ -1,5 +1,7 @@
 # TDD Process Safety Report Generation
 
+[English](./README_en.md) | [中文](./README_zh.md)
+
 ## Title/Caption
 
 - **Title:** DSC Report Generation Tool (Python)
