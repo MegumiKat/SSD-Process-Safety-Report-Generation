@@ -209,4 +209,86 @@ QGroupBox::title {
     color: #d0d0d0;
 }
 
+/* 样品列表中的每一项卡片 */
+QWidget#SampleCard {
+    /* 控制高度：变“厚”一点 */
+    min-height: 45px;   /* 可以根据喜好改成 52 / 60 等 */
+    max-height: 45px;
+    border: 1px inset white;
+
+    /* 让卡片本身看起来更像一个块 */
+    border-radius: 8px;
+    background-color: transparent;
+    padding: 6px 10px;  /* 内边距稍微大一点 */
+}
+
+QLineEdit {
+    color: #f5f5f5;
+}
+/* placeholder 统一浅灰 */
+QLineEdit::placeholder {
+    color: #888888;
+}
+
+QPushButton#LogClearButton {
+    min-width: 90px;
+    padding: 4px 10px;
+    font-size: 20pt;
+}
+
+/* ===== 右上角 Auto / Log 标签按钮 ===== */
+QPushButton#RightTabButton {
+    background-color: #2b2b2b;
+    border-radius: 14px;
+    border: 1px solid #3b3b3b;
+    padding: 4px 16px;
+    font-size: 20pt;      /* 比全局 20pt 小一点，不会太丑 */
+    color: #cccccc;
+    min-width: 70px;
+}
+
+QPushButton#RightTabButton:hover {
+    background-color: #383838;
+    border: 1px solid #5a5a5a;
+}
+
+/* 选中态：橙色高亮 */
+QPushButton#RightTabButton:checked {
+    background-color: rgb(255, 119, 0);
+    border: 1px solid rgb(255, 119, 0);
+    color: #ffffff;
+}
+
+/* 选中态按下更深一点（可选） */
+QPushButton#RightTabButton:checked:pressed {
+    background-color: rgba(255, 136, 0, 0.94);
+}
+
+/* ===== 样品切换（上下翻页）按钮 ===== */
+QPushButton#SampleNavButton {
+    background-color: #2b2b2b;
+    border-radius: 14px;
+    border: 1px solid #444444;
+    padding: 3px 0;
+    min-width: 30px;       /* 和你在代码里 setFixedWidth 差不多一致 */
+    font-size: 20pt;       /* 比主界面 20pt 小一点，显得精致 */
+    color: #ffffff;
+}
+
+QPushButton#SampleNavButton:hover {
+    background-color: #6b6969;
+    border: 1px solid #666666;
+}
+
+QPushButton#SampleNavButton:pressed {
+    background-color: #222222;
+    border: 1px solid rgba(255, 136, 0, 0.94);
+}
+
+/* 禁用状态（到头的箭头变淡） */
+QPushButton#SampleNavButton:disabled {
+    background-color: #1f1f1f;
+    border: 1px solid #333333;
+    color: #555555;
+}
 /*

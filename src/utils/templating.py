@@ -397,24 +397,24 @@ def _build_segment_rows(segments: List[DscSegment], sample_name: str) -> List[Di
             # Start(Observed) = Value 对应温度，只要一位小数
             row["SEG_VALUE"] = (
                 f"{p.value_temp_c:.1f}"
-                if p.value_temp_c is not None else ""
+                if p.value_temp_c is not None else "-"
             )
 
             row["SEG_ONSET"] = (
                 f"{p.onset_c:.1f}"
-                if p.onset_c is not None else ""
+                if p.onset_c is not None else "-"
             )
 
             # Peak / Area / Comment
             row["SEG_PEAK"] = (
                 f"{p.peak_c:.1f}"
-                if p.peak_c is not None else ""
+                if p.peak_c is not None else "-"
             )
             row["SEG_AREA"] = (
                 f"{p.area_report:.3f}"
-                if p.area_report is not None else ""
+                if p.area_report is not None else "-"
             )
-            row["SEG_COMMENT"] = p.comment or ""
+            row["SEG_COMMENT"] = p.comment or "-"
 
             rows.append(row)
 
@@ -585,10 +585,14 @@ def _fill_segment_rows_to_table(doc: Document, rows_data: List[Dict[str, str]]) 
     _merge_down_same_text(table, start_row, end_row, SAMPLE_COL)
     _merge_method_within_sample(table, start_row, end_row, SAMPLE_COL, METHOD_COL)
 
+    num_cols = len(table.rows[tpl_row_idx].cells)
+
     for r in range(start_row, end_row + 1):
-        for c in (SAMPLE_COL, METHOD_COL):
+        for c in range(num_cols):
             cell = table.cell(r, c)
+            # 垂直居中
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            # 水平居中
             for p in cell.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
