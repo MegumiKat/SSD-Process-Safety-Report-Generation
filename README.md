@@ -67,7 +67,8 @@
 
 #### Constraints / Challenges
 
-- Instrument output text can vary across methods/runs; required resilient parsing and edge-case handling.- Word placeholder replacement can be affected by run splitting and formatting, requiring careful replacement logic.
+- Instrument output text can vary across methods/runs; required resilient parsing and edge-case handling.
+- Word placeholder replacement can be affected by run splitting and formatting, requiring careful replacement logic.
 - Managing repository hygiene (excluding sample data, temporary Word files like ~$*, and virtual environments).
 
 #### Skills Applied / Developed
