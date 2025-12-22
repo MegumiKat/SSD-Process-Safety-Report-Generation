@@ -6,7 +6,8 @@ from typing import Optional, List
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
-    QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget
+    QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget,
+    QSpacerItem, QSizePolicy
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QTextCursor, QPixmap, QIcon
@@ -223,7 +224,7 @@ class MainWindow(QMainWindow):
         self.sample_scroll.setWidget(self.sample_list_container)
         sample_group_layout.addWidget(self.sample_scroll)
 
-        left_layout.addWidget(sample_group, stretch=1)
+        left_layout.addWidget(sample_group, stretch=2)
 
         # 构建初始的样品列表 UI（只有一个“Add Sample”按钮）
         self._rebuild_sample_list_ui()
@@ -335,7 +336,7 @@ class MainWindow(QMainWindow):
         manual_hbox.addWidget(scroll_sample, 3)
 
         # 最终把整个手动输入模块加到左侧主布局
-        left_layout.addWidget(manual_block, stretch=1)
+        left_layout.addWidget(manual_block, stretch=3)
         
         # ---------- 右侧：顶部标签栏 Auto / Log ----------
         right_top_bar = QHBoxLayout()
@@ -444,7 +445,7 @@ class MainWindow(QMainWindow):
         self.right_stack.setCurrentIndex(0)
         # 初始化右上角 actions（Auto: 样品切换；Log: Clear）
         self._rebuild_right_top_actions()
-
+        self._init_placeholders()
 
         # 启动时检查模板
         if not os.path.exists(self.template_path):
@@ -495,6 +496,44 @@ class MainWindow(QMainWindow):
     def _set_output_filled_style(self):
         """已选择输出文件时：显示绿色文件名。"""
         self.output_label.setStyleSheet("color: #33cc33;")  # 绿色
+
+    def _init_placeholders(self):
+        """统一设置所有输入框/多行文本的 placeholder。"""
+
+        # ===== Request information =====
+        self.input_lsmp_code.setPlaceholderText("Test Code")
+        self.input_request_id.setPlaceholderText("Request Id")
+        self.input_customer.setPlaceholderText("Customer Information")
+        self.input_request_name.setPlaceholderText("Request Name")
+        self.input_submission_date.setPlaceholderText("YYYY/MM/DD")
+        self.input_request_number.setPlaceholderText("Request Number")
+        self.input_project_account.setPlaceholderText("Project Account")
+        self.input_deadline.setPlaceholderText("YYYY/MM/DD")
+        self.input_receive_date.setPlaceholderText("YYYY/MM/DD")
+        self.input_test_date.setPlaceholderText("YYYY/MM/DD")
+        self.input_report_date.setPlaceholderText("YYYY/MM/DD")
+
+        # QTextEdit 也支持 placeholder（Qt6）
+        try:
+            self.input_request_desc.setPlaceholderText("Request Description")
+        except AttributeError:
+            pass
+
+        # ===== Auto 区域 =====
+        self.auto_sample_name.setPlaceholderText("Sample Name")
+        self.auto_sample_mass.setPlaceholderText("Sample Mass(mg)")
+        self.auto_operator.setPlaceholderText("Operator")
+        self.auto_instrument.setPlaceholderText("Instrument")
+        self.auto_atmosphere.setPlaceholderText("Atmosphere")
+        self.auto_crucible.setPlaceholderText("Crucible")
+        self.auto_temp_calib.setPlaceholderText("YYYY/MM/DD")
+        self.auto_end_date.setPlaceholderText("YYYY/MM/DD")
+
+        # ===== 左下 Sample manual 字段（你已在 _rebuild_manual_sample_forms 里设过，如果想改文案也可以一起调）=====
+        # 在 _rebuild_manual_sample_forms 里已经有：
+        # edit_sample_id.setPlaceholderText("Sample Id")
+        # edit_nature.setPlaceholderText("Nature")
+        # edit_assign_to.setPlaceholderText("Assign To")
 
         # ===== 样品工具方法 =====
     def _get_current_sample(self) -> Optional[SampleItem]:
@@ -560,11 +599,17 @@ class MainWindow(QMainWindow):
             label = QLabel(f"Sample {idx + 1} / {total}")
             self.right_top_actions.addWidget(label)
 
-            btn_prev = QPushButton("<")
-            btn_next = QPushButton(">")
+            # 更好看的左右箭头按钮
+            btn_prev = QPushButton("◀")
+            btn_next = QPushButton("▶")
 
-            btn_prev.setFixedWidth(28)
-            btn_next.setFixedWidth(28)
+            # 统一 objectName，方便在 QSS 里美化
+            btn_prev.setObjectName("SampleNavButton")
+            btn_next.setObjectName("SampleNavButton")
+
+            # 不要太窄
+            btn_prev.setFixedWidth(32)
+            btn_next.setFixedWidth(32)
 
             btn_prev.clicked.connect(self._goto_prev_sample)
             btn_next.clicked.connect(self._goto_next_sample)
@@ -580,7 +625,8 @@ class MainWindow(QMainWindow):
         # ===== Log 页 =====
         else:
             btn_clear = QPushButton("Clear")
-            btn_clear.setFixedWidth(60)
+            btn_clear.setObjectName("LogClearButton")
+            btn_clear.setFixedWidth(90)
             btn_clear.clicked.connect(self.clear_log)
             self.right_top_actions.addWidget(btn_clear)
 
@@ -701,6 +747,11 @@ class MainWindow(QMainWindow):
         add_btn.clicked.connect(self.on_add_sample_clicked)
         self.sample_list_layout.addWidget(add_btn)
 
+            # 在按钮和第一个样品卡之间加一点竖直空隙（比如 12 像素）
+        self.sample_list_layout.addSpacerItem(
+            QSpacerItem(0, 12, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        )
+
         # 2) 每个已有样品，生成一张卡片（后面第三步详细填充）
         for sample in self.samples:
             card = self._create_sample_card(sample)
@@ -747,7 +798,7 @@ class MainWindow(QMainWindow):
         # 删除按钮（只删样品，不触发 card 的 mousePressEvent）
         btn_remove = QPushButton("Remove")
         btn_remove.setObjectName("SampleRemoveButton")
-        btn_remove.setFixedHeight(22)
+        btn_remove.setFixedHeight(40)
         btn_remove.clicked.connect(lambda _, sid=sample.id: self.on_remove_sample(sid))
         layout.addWidget(btn_remove)
 
@@ -1172,7 +1223,7 @@ class MainWindow(QMainWindow):
 
             # 2. Segments
             try:
-                segments = parse_dsc_segments(sample.txt_path)
+                segments = parse_dsc_segments(sample.txt_path, pdf_path=sample.pdf_path)
             except Exception as e_seg:
                 segments = []
                 msg_seg = (
