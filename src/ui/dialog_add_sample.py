@@ -103,7 +103,7 @@ class AddSampleDialog(QDialog):
             self,
             "Choose TXT",
             "",
-            "Text Files (*.txt);;All Files (*)"
+            "Text Files (*.txt);;All Files (*)"         
         )
         if not path:
             return

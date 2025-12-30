@@ -221,6 +221,8 @@ class MainWindow(QMainWindow):
         # ---- Template 和 Output 行 ----
         # Template
         row_tpl = QHBoxLayout()
+        row_tpl.setContentsMargins(0, 0, 0, 0)
+        row_tpl.setSpacing(8)  # 行内控件的基础间距
         lbl_tpl = QLabel("Template:")
         lbl_tpl.setObjectName("HeaderLabel")
 
@@ -250,12 +252,15 @@ class MainWindow(QMainWindow):
                             QSizePolicy.Policy.Fixed)
 
         row_tpl.addWidget(lbl_tpl)
-        row_tpl.addSpacing(4)
+        row_tpl.addSpacing(20)
         row_tpl.addWidget(self.template_box, 1)  # 让 value 部分吃宽度
+        row_tpl.addSpacing(20)   
         row_tpl.addWidget(btn_tpl)
 
         # Output
         row_out = QHBoxLayout()
+        row_out.setContentsMargins(0, 6, 0, 0)  # 比 Template 往下留 6px
+        row_out.setSpacing(8)
         lbl_out = QLabel("Output:")
         lbl_out.setObjectName("HeaderLabel")
 
@@ -284,8 +289,9 @@ class MainWindow(QMainWindow):
         lbl_out.setMaximumWidth(120)
 
         row_out.addWidget(lbl_out)
-        row_out.addSpacing(4)
+        row_out.addSpacing(20)
         row_out.addWidget(self.output_box, 1)
+        row_out.addSpacing(20)
         row_out.addWidget(btn_out)
 
         files_group_layout.addLayout(row_tpl)
@@ -597,11 +603,11 @@ class MainWindow(QMainWindow):
         # 先按窗口宽度决定“字段/按钮”这一层的基础字号
         w = max(self.width(), 900)
         if w >= 1700:
-            base = 22    # 字段/按钮/输入框
+            base = 20   # 字段/按钮/输入框
         elif w >= 1300:
-            base = 20
-        else:
             base = 18
+        else:
+            base = 16
 
         # 1）全局基础字体：字段名 / value / 按钮 / 输入框
         app_font = QFont(app.font())
