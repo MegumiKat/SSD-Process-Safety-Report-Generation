@@ -86,6 +86,7 @@ class AddSampleDialog(QDialog):
         btn_cancel.clicked.connect(self.reject)
 
         btn_ok = QPushButton("Confirm")
+        btn_ok.setObjectName("PrimaryButton") 
         btn_ok.clicked.connect(self.on_confirm)
 
         # 左右各一个 stretch，让按钮居中

@@ -1,294 +1,284 @@
-/* ===== 全局基础 ===== */
-QWidget {
-    background-color: #1f1f1f;   /* 深色背景，接近 macOS Dark */
-    color: #f5f5f5;             /* 默认文字颜色 */
-    font-size: 20pt;
+/* ================= 全局基础 ================= */
+
+* {
+    color: #f5f5f5;
 }
 
-/* 主窗口（可选） */
+/* 主窗口背景 */
 QMainWindow {
-    background-color: #1f1f1f;
+    background-color: #2c313e;
 }
 
-/* 标题、说明文字 */
-QLabel {
-    color: #f5f5f5;
-}
-
-/* 程序主标题：objectName = "AppTitle" */
-QLabel#AppTitle {
-    font-size: 24px;
-    font-weight: bold;
-    color: rgba(255, 136, 0, 0.94);
-}
-
-/* 顶部 Header 里 Template/Output 左边的文字（Template: / Output:） */
-QLabel#HeaderLabel {
-    color: #d0d0d0;
-    font-size: 20pt;
-    font-weight: normal;
-}
-
-/* 顶部 Header 里 Template/Output 的值（文件名） */
-QLabel#HeaderValue {
-    color: #f5f5f5;
-    font-size: 16pt;
-    font-weight: normal;
-
-    /* 让两行的 value 列宽度一致 */
-    min-width: 250px;
-    max-width: 250px;
-
-    /* 文本在 label 内右对齐（按钮不受影响） */
-    qproperty-alignment: 'AlignRight | AlignVCenter';
-}
-
-/* 分组标题（如果以后需要可以在代码里设置 objectName 为 sectionTitle / subtitle） */
-QLabel[objectName="sectionTitle"],
-QLabel[objectName="subtitle"] {
-    color: #d0d0d0;
-    font-weight: bold;
-}
-
-/* ===== 单行控件：输入框 / 文件选择容器 / 模板容器 / 输出容器（统一高度和风格） ===== */
-QLineEdit,
-QWidget#FileChipBox,
-QWidget#TemplateBox,
-QWidget#OutputBox {
-    background-color: transparent;
-    color: #f5f5f5;
-    border: 1px solid #3b3b3b;
-    border-radius: 6px;
-    padding: 3px 6px;
-
-    /* 高度统一控制 */
-    min-height: 24px;
-    max-height: 24px;
-}
-
-/* 禁用状态 */
-QLineEdit:disabled,
-QWidget#FileChipBox:disabled,
-QWidget#OutputBox:disabled {
-    color: #888888;
-    background-color: transparent;
-    border: 1px solid #333333;
-}
-
-/* 聚焦高亮：只作用在 QLineEdit，FileChipBox / OutputBox 不会有 focus 边框 */
-QLineEdit:focus {
-    border: 1px solid rgba(255, 136, 0, 0.94);
-}
-
-/* OutputBox 内的文件名 label 简单留点左右 padding */
-/* TemplateBox / OutputBox 内的文件名 label 简单留点左右 padding */
-QWidget#TemplateBox QLabel,
-QWidget#OutputBox QLabel {
-    padding-left: 4px;
-    padding-right: 4px;
-}
-
-/* ===== 多行文本：QTextEdit ===== */
-QTextEdit {
-    background-color: #2b2b2b;
-    color: #f5f5f5;
-    border: 1px solid #3b3b3b;
-    border-radius: 6px;
-    padding: 3px 6px;
-
-    /* 比单行高一点 */
-    min-height: 60px;
-}
-
-QTextEdit:disabled {
-    color: #888888;
-    background-color: #2a2a2a;
-    border: 1px solid #333333;
-}
-
-QTextEdit:focus {
-    border: 1px solid rgba(255, 136, 0, 0.94);
-}
-
-/* ===== 按钮 ===== */
-QPushButton {
-    background-color: #333333;
-    color: #ffffff;
-    border-radius: 6px;
-    border: 1px solid #4a4a4a;
-    padding: 5px 12px;
-}
-
-QPushButton:hover {
-    background-color: #3b3b3b;
-    border: 1px solid #5a5a5a;
-}
-
-QPushButton:pressed {
-    background-color: #2a2a2a;
-    border: 1px solid rgba(255, 136, 0, 0.94);
-}
-
-QPushButton:disabled {
-    background-color: #2a2a2a;
-    color: #777777;
-    border: 1px solid #333333;
-}
-
-/* 主动作按钮：Generate Report（需要在代码里 btn_generate.setObjectName("btn_generate")） */
-QPushButton#btn_generate {
-    background-color: rgb(255, 119, 0);
-    border: 1px solid rgb(255, 119, 0);
-    color: #ffffff;
-}
-
-QPushButton#btn_generate:hover {
-    background-color: rgba(255, 136, 0, 0.94);
-}
-
-QPushButton#btn_generate:pressed {
-    background-color: rgba(255, 136, 0, 0.94);
-}
-
-/* ===== 滚动区域 / 滚动条 ===== */
+/* 滚动区域背景保持一致 */
 QScrollArea {
-    background-color: transparent;
+    background-color: #202124;
     border: none;
 }
 
+/* 默认背景 */
+QWidget {
+    background-color: #202124;
+}
+
+/* ================= 标题 & 区块标题 ================= */
+
+/* 顶部 App 标题：字号由 Python 控制，这里只设粗体和颜色 */
+QLabel#AppTitle {
+    font-weight: 600;
+    color: #ffffff;
+}
+
+/* 左侧模块标题，例如 "Samples" / "Auto fields & segments" */
+#sectionTitle {
+    font-weight: 600;
+    color: #f0f0f0;
+}
+
+/* 左下每个样品的小标题 */
+#SampleManualTitle {
+    font-weight: 600;
+}
+
+/* 样品卡片里的名字 */
+#SampleNameLabel {
+    font-weight: 500;
+}
+
+/* Header 部分的 label（Template / Output） */
+#HeaderLabel {
+    color: #dddddd;
+}
+
+#HeaderValue {
+    color: #ffffff;
+}
+
+/* 当前样品标签（Step2 右上） */
+#CurrentSampleLabel {
+    font-weight: 500;
+    color: #ffb74d;
+}
+
+/* ================= Step 进度条 ================= */
+
+#StepButton {
+    min-height: 34px;
+    padding: 6px 14px;
+    border-radius: 18px;
+    border: 1px solid #555a64;
+    background-color: #2b2f36;
+    color: #e0e0e0;
+}
+
+/* 当前 step（黄色） */
+#StepButton[state="current"] {
+    background-color: #ffb74d;
+    border-color: #ffb74d;
+    color: #1b1b1b;
+}
+
+/* 已完成 step（绿色） */
+#StepButton[state="done"] {
+    background-color: #66bb6a;
+    border-color: #66bb6a;
+    color: #1b1b1b;
+}
+
+/* 未开始 / 待办 step（灰色） */
+#StepButton[state="todo"] {
+    background-color: #2b2f36;
+    border-color: #555a64;
+    color: #9e9e9e;
+}
+
+#StepArrow {
+    color: #9e9e9e;
+}
+
+/* 上一步 / 下一步 按钮（进度条下面那行） */
+#StepNavButton,
+#StepNavButtonPrimary {
+    min-height: 32px;
+    padding: 6px 20px;
+    border-radius: 20px;
+}
+
+#StepNavButton {
+    background-color: transparent;
+    border: 1px solid #616161;
+    color: #e0e0e0;
+}
+
+#StepNavButton:hover:enabled {
+    background-color: #383c42;
+}
+
+#StepNavButton:disabled {
+    color: #777777;
+    border-color: #444444;
+}
+
+#StepNavButtonPrimary {
+    background-color: #f58a42;
+    border: 1px solid #f58a42;
+    color: #ffffff;
+}
+
+#StepNavButtonPrimary:hover:enabled {
+    background-color: #f6b73a;
+}
+
+/* ================= 按钮通用 ================= */
+
+QPushButton {
+    border-radius: 6px;
+    padding: 4px 12px;
+    background-color: #3c4043;
+    border: 1px solid #5f6368;
+    color: #f5f5f5;
+}
+
+QPushButton:hover:enabled {
+    background-color: #4a4f53;
+}
+
+QPushButton:pressed:enabled {
+    background-color: #2f3437;
+}
+
+QPushButton:disabled {
+    color: #777777;
+    border-color: #444444;
+}
+
+/* 左上 Add Sample */
+#AddSampleButton {
+    background-color: #f58a42;
+    border-color: #f58a42;
+}
+
+#AddSampleButton:hover:enabled {
+    background-color: #f6b73a;
+}
+
+
+/* 通用主按钮（橙色），给 Generate / Confirm 等用 */
+#PrimaryButton {
+    background-color: #f58a42;
+    border: 1px solid #f58a42;
+    color: #ffffff;
+}
+
+#PrimaryButton:hover:enabled {
+    background-color: #f6b73a;
+}
+
+/* 删除样品按钮 */
+#SampleRemoveButton {
+    background-color: #d32f2f;
+    border-color: #d32f2f;
+}
+
+#SampleRemoveButton:hover:enabled {
+    background-color: #e53935;
+}
+
+/* 右上样品切换按钮 ◀ ▶ */
+#SampleNavButton {
+    min-width: 32px;
+    min-height: 28px;
+}
+
+/* ================= 输入控件 ================= */
+
+QLineEdit, QTextEdit {
+    background-color: transparent;
+    border: 1px solid #5f6368;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+QLineEdit:focus, QTextEdit:focus {
+    border-color: #f58a42;
+    background-color: transparent;
+}
+
+QLineEdit[readOnly="true"] {
+    background-color: transparent;
+    color: #aaaaaa;
+}
+
+/* Placeholder 颜色稍微淡一点 */
+QLineEdit::placeholder, QTextEdit::placeholder {
+    color: #9e9e9e;
+}
+
+/* ================= 样品列表卡片 ================= */
+
+#SampleGroup {
+    background-color: transparent;
+    border-radius: 8px;
+    border: 1px solid #3c4043;
+}
+
+#SampleCard {
+    background-color: transparent;
+    border-radius: 6px;
+    border: 1px solid transparent;
+}
+
+#SampleCard:hover {
+    border-color: #5f6368;
+}
+
+/* ================= Template / Output 框 ================= */
+
+#TemplateBox, #OutputBox {
+    background-color: transparent;
+    border-radius: 4px;
+    border: 1px solid #5f6368;
+    padding: 2px 6px;
+}
+
+/* ================= 滚动条 ================= */
+
 QScrollBar:vertical {
-    background: #1f1f1f;
+    background-color: transparent;
     width: 10px;
     margin: 0px;
 }
 
 QScrollBar::handle:vertical {
-    background: #444444;
-    border-radius: 5px;
+    background-color: #5f6368;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #5b5b5b;
+    background-color: #9aa0a6;
 }
 
 QScrollBar::add-line:vertical,
 QScrollBar::sub-line:vertical {
-    height: 0;
+    height: 0px;
 }
 
+/* 水平滚动条 */
 QScrollBar:horizontal {
-    background: #1f1f1f;
+    background-color: transparent;
     height: 10px;
+    margin: 0px;
 }
 
 QScrollBar::handle:horizontal {
-    background: #444444;
-    border-radius: 5px;
+    background-color: #5f6368;
+    border-radius: 4px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background: #5b5b5b;
+    background-color: #9aa0a6;
 }
 
 QScrollBar::add-line:horizontal,
 QScrollBar::sub-line:horizontal {
-    width: 0;
+    width: 0px;
 }
-
-/* ===== GroupBox / Frame 等容器 ===== */
-QGroupBox {
-    border: 1px solid #3b3b3b;
-    border-radius: 8px;
-    margin-top: 8px;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    left: 10px;
-    padding: 0 4px;
-    color: #d0d0d0;
-}
-
-/* 样品列表中的每一项卡片 */
-QWidget#SampleCard {
-    /* 控制高度：变“厚”一点 */
-    min-height: 45px;   /* 可以根据喜好改成 52 / 60 等 */
-    max-height: 45px;
-    border: 1px inset white;
-
-    /* 让卡片本身看起来更像一个块 */
-    border-radius: 8px;
-    background-color: transparent;
-    padding: 6px 10px;  /* 内边距稍微大一点 */
-}
-
-QLineEdit {
-    color: #f5f5f5;
-}
-/* placeholder 统一浅灰 */
-QLineEdit::placeholder {
-    color: #888888;
-}
-
-QPushButton#LogClearButton {
-    min-width: 90px;
-    padding: 4px 10px;
-    font-size: 20pt;
-}
-
-/* ===== 右上角 Auto / Log 标签按钮 ===== */
-QPushButton#RightTabButton {
-    background-color: #2b2b2b;
-    border-radius: 14px;
-    border: 1px solid #3b3b3b;
-    padding: 4px 16px;
-    font-size: 20pt;      /* 比全局 20pt 小一点，不会太丑 */
-    color: #cccccc;
-    min-width: 70px;
-}
-
-QPushButton#RightTabButton:hover {
-    background-color: #383838;
-    border: 1px solid #5a5a5a;
-}
-
-/* 选中态：橙色高亮 */
-QPushButton#RightTabButton:checked {
-    background-color: rgb(255, 119, 0);
-    border: 1px solid rgb(255, 119, 0);
-    color: #ffffff;
-}
-
-/* 选中态按下更深一点（可选） */
-QPushButton#RightTabButton:checked:pressed {
-    background-color: rgba(255, 136, 0, 0.94);
-}
-
-/* ===== 样品切换（上下翻页）按钮 ===== */
-QPushButton#SampleNavButton {
-    background-color: #2b2b2b;
-    border-radius: 14px;
-    border: 1px solid #444444;
-    padding: 3px 0;
-    min-width: 30px;       /* 和你在代码里 setFixedWidth 差不多一致 */
-    font-size: 20pt;       /* 比主界面 20pt 小一点，显得精致 */
-    color: #ffffff;
-}
-
-QPushButton#SampleNavButton:hover {
-    background-color: #6b6969;
-    border: 1px solid #666666;
-}
-
-QPushButton#SampleNavButton:pressed {
-    background-color: #222222;
-    border: 1px solid rgba(255, 136, 0, 0.94);
-}
-
-/* 禁用状态（到头的箭头变淡） */
-QPushButton#SampleNavButton:disabled {
-    background-color: #1f1f1f;
-    border: 1px solid #333333;
-    color: #555555;
-}
-/*
