@@ -38,6 +38,9 @@ class MainWindow(QMainWindow):
         self.segment_widgets: list[dict] = []
         self.confirmed: bool = False  # 是否点击过“确认数据”
 
+        # Auto 区所有 QLineEdit，用于统一宽度
+        self._auto_edits: list[QLineEdit] = []
+
         # 多样品管理
         self.samples: list[SampleItem] = []
         self.current_sample_id: Optional[int] = None
@@ -216,7 +219,6 @@ class MainWindow(QMainWindow):
         files_group_layout = QVBoxLayout(files_group)
         files_group_layout.setContentsMargins(0, 0, 0, 0)
         files_group_layout.setSpacing(4)
-        
 
         # ---- Template 和 Output 行 ----
         # Template
@@ -242,19 +244,23 @@ class MainWindow(QMainWindow):
         lbl_tpl.setMinimumWidth(90)
         lbl_tpl.setMaximumWidth(120)
         # value 框可水平扩展
-        self.template_box.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                        QSizePolicy.Policy.Fixed)
+        self.template_box.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed
+        )
 
         # 按钮保持固定大小
         btn_tpl = QPushButton("Change")
         btn_tpl.clicked.connect(self.choose_template)
-        btn_tpl.setSizePolicy(QSizePolicy.Policy.Fixed,
-                            QSizePolicy.Policy.Fixed)
+        btn_tpl.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed
+        )
 
         row_tpl.addWidget(lbl_tpl)
         row_tpl.addSpacing(20)
         row_tpl.addWidget(self.template_box, 1)  # 让 value 部分吃宽度
-        row_tpl.addSpacing(20)   
+        row_tpl.addSpacing(20)
         row_tpl.addWidget(btn_tpl)
 
         # Output
@@ -277,13 +283,17 @@ class MainWindow(QMainWindow):
         )
         out_layout.addWidget(self.output_label)
 
-        self.output_box.setSizePolicy(QSizePolicy.Policy.Expanding,
-                                    QSizePolicy.Policy.Fixed)
+        self.output_box.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed
+        )
 
         btn_out = QPushButton("Choose")
         btn_out.clicked.connect(self.choose_output)
-        btn_out.setSizePolicy(QSizePolicy.Policy.Fixed,
-                            QSizePolicy.Policy.Fixed)
+        btn_out.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed
+        )
 
         lbl_out.setMinimumWidth(90)
         lbl_out.setMaximumWidth(120)
@@ -302,8 +312,7 @@ class MainWindow(QMainWindow):
         self._header_field_values = [self.label_tpl, self.output_label]
         self._header_field_buttons = [btn_tpl, btn_out]
 
-        # 给 Files group 一个上限宽度，整体居中
-        # files_group.setMaximumWidth(700)
+        # Files group 居中
         s1_layout.addWidget(files_group, 0, Qt.AlignmentFlag.AlignHCenter)
 
         # ---- Samples 列表 ----
@@ -371,17 +380,27 @@ class MainWindow(QMainWindow):
         auto_container = QWidget()
         auto_vbox = QVBoxLayout(auto_container)
         auto_vbox.setContentsMargins(0, 0, 0, 0)
-        auto_vbox.setSpacing(8)
+        auto_vbox.setSpacing(6)  # 减小间距，让 Segments 更贴近标题
 
         auto_form = QFormLayout()
         auto_form.setHorizontalSpacing(12)
         auto_form.setVerticalSpacing(6)
+        auto_form.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint
+        )
         auto_vbox.addLayout(auto_form)
 
+        # Auto 区输入框：统一宽度，随最长内容轻微自适应
         def _new_auto_input() -> QLineEdit:
             e = QLineEdit()
-            e.setMinimumWidth(400)
-            e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            e.setMinimumWidth(260)
+            e.setMaximumWidth(520)
+            e.setSizePolicy(QSizePolicy.Policy.Preferred,
+                            QSizePolicy.Policy.Fixed)
+            # 记录到列表
+            self._auto_edits.append(e)
+            # 文本变化时刷新所有 Auto 框的统一宽度
+            e.textChanged.connect(lambda _t: self._refresh_auto_edits_width())
             return e
 
         self.auto_sample_name = _new_auto_input()
@@ -421,6 +440,9 @@ class MainWindow(QMainWindow):
         s2_layout.addWidget(auto_scroll, stretch=1)
 
         self.step_stack.addWidget(step2)
+
+        # 初始化一次 Auto 文本框统一宽度
+        self._refresh_auto_edits_width()
 
         # =====================================================================
         # Step 3: Manual & Confirm
@@ -675,27 +697,57 @@ class MainWindow(QMainWindow):
             f.setPointSize(base)
             t.setFont(f)
 
-        # 5）Template/Output 左侧 “Template: / Output:” 字段名
+        # 8）Template/Output 左侧 “Template: / Output:” 字段名
         for lbl in getattr(self, "_header_field_labels", []):
             f = QFont(lbl.font())
             f.setPointSize(base)   # 和普通字段一样大
             lbl.setFont(f)
 
-        # 6）Template/Output 的 value 文本 + Change/Choose 按钮
+        # 9）Template/Output 的 value 文本 + Change/Choose 按钮
         for w in getattr(self, "_header_field_values", []) + getattr(self, "_header_field_buttons", []):
             f = QFont(w.font())
             f.setPointSize(base)
             w.setFont(f)
 
-        # 7）Add Sample 按钮：不要比 "Samples" 标题大
+        # 10）Add Sample 按钮：不要比 "Samples" 标题大
         if getattr(self, "add_sample_btn", None) is not None:
             f = QFont(self.add_sample_btn.font())
-            f.setPointSize(base)  # 或者 base-1，看你视觉效果
+            f.setPointSize(base)
             self.add_sample_btn.setFont(f)
+
+        # 字体变化后，重新计算 Auto 文本框统一宽度
+        self._refresh_auto_edits_width()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._apply_font_scaling()
+
+    # =====================================================================
+    # Auto 区输入框宽度：所有框统一，随“最长内容”调整
+    # =====================================================================
+    def _refresh_auto_edits_width(self, padding: int = 36):
+        if not self._auto_edits:
+            return
+
+        max_w = 0
+        # 先算所有 Auto 框里最长文本需要的宽度
+        for e in self._auto_edits:
+            if e is None:
+                continue
+            fm = e.fontMetrics()
+            text = e.text() or e.placeholderText() or ""
+            w = fm.horizontalAdvance(text) + padding
+            if w > max_w:
+                max_w = w
+
+        if max_w <= 0:
+            return
+
+        target = max(260, min(max_w, 520))
+        # 再把这个宽度统一应用到所有 Auto 文本框
+        for e in self._auto_edits:
+            e.setMinimumWidth(target)
+            e.setMaximumWidth(target)
 
     # =====================================================================
     # 基础 UI 辅助
@@ -811,6 +863,8 @@ class MainWindow(QMainWindow):
         self._build_segments_auto_fields(self.parsed_segments or [])
 
         self._update_auto_sample_header()
+        # 加载完数据后刷新 Auto 文本框宽度
+        self._refresh_auto_edits_width()
 
     def _store_ui_to_sample(self, sample: SampleItem):
         self._apply_segment_edits()
@@ -1561,7 +1615,6 @@ class MainWindow(QMainWindow):
     def clear_log(self):
         self.file_logs.clear()
         self.confirm_block = None
-        self.generate_logs.clear()
 
     def _add_file_log(self, msg: str):
         self.file_logs.append(msg)
