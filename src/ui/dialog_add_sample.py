@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QLineEdit, QFileDialog, QMessageBox
+    QLineEdit, QFileDialog, QMessageBox, QFrame, QGridLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt
 from src.utils.parser_dsc import parse_dsc_txt_basic
@@ -13,120 +13,173 @@ from src.utils.parser_dsc import parse_dsc_txt_basic
 
 class AddSampleDialog(QDialog):
     """
-    小弹窗：供用户为一个样品选择 TXT / PDF，并输入样品名。
+    弹窗：为一个样品选择 TXT / PDF，并输入样品名。
     - TXT 必填
     - PDF 可选
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("AddSampleDialog")
         self.setWindowTitle("Add Sample")
         self.setModal(True)
 
         self.txt_path: str = ""
         self.pdf_path: Optional[str] = None
 
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(16, 16, 16, 16)
-        main_layout.setSpacing(10)
+        # ===== Root =====
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 18, 18, 18)
+        root.setSpacing(12)
 
-        # ===== 样品名 =====
-        row_name = QHBoxLayout()
-        lbl_name = QLabel("Sample Name:")
-        self.edit_name = QLineEdit()
+        # ===== Card =====
+        card = QFrame()
+        card.setObjectName("DialogCard")
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        # 橙色字段名
-        orange_style = "color: rgb(255,119,0); font-weight: bold;"
-        lbl_name.setStyleSheet(orange_style)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(22, 18, 22, 18)
+        card_layout.setSpacing(14)
+        root.addWidget(card)
 
-        row_name.addWidget(lbl_name)
-        row_name.addWidget(self.edit_name, 1)
-        main_layout.addLayout(row_name)
+        # ===== Title / Hint =====
+        title = QLabel("Add a Sample")
+        title.setObjectName("DialogTitle")
 
-        # ===== TXT 选择 =====
-        row_txt = QHBoxLayout()
-        lbl_txt = QLabel("TXT:")
-        self.lbl_txt_file = QLabel("No TXT selected")
-        self.lbl_txt_file.setObjectName("FileNameLabel")
+        hint = QLabel("TXT is required. PDF is optional.")
+        hint.setObjectName("DialogHint")
 
-        # 橙色字段名
-        lbl_txt.setStyleSheet(orange_style)
+        card_layout.addWidget(title)
+        card_layout.addWidget(hint)
 
-        btn_txt = QPushButton("Add TXT")
+        # ===== Form grid =====
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 6, 0, 0)
+        grid.setHorizontalSpacing(14)
+        grid.setVerticalSpacing(14)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
+        card_layout.addLayout(grid)
+
+        def _mk_label(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setObjectName("AccentLabel")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            lbl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            return lbl
+
+        def _mk_edit(placeholder: str, read_only: bool = False, obj: str = "") -> QLineEdit:
+            e = QLineEdit()
+            if obj:
+                e.setObjectName(obj)
+            e.setPlaceholderText(placeholder)
+            e.setReadOnly(read_only)
+            e.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            return e
+
+        def _mk_browse_btn(text: str) -> QPushButton:
+            b = QPushButton(text)
+            b.setObjectName("BrowseButton")
+            b.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            return b
+
+        # Row 0: Sample Name
+        self.lbl_name = _mk_label("Sample Name:")
+        self.edit_name = _mk_edit("e.g. CF130G (Batch A)", read_only=False, obj="NameEdit")
+        grid.addWidget(self.lbl_name, 0, 0)
+        grid.addWidget(self.edit_name, 0, 1, 1, 2)
+
+        # Row 1: TXT
+        self.lbl_txt = _mk_label("TXT:")
+        self.edit_txt = _mk_edit("No TXT selected", read_only=True, obj="FilePathEdit")
+        btn_txt = _mk_browse_btn("Browse TXT")
         btn_txt.clicked.connect(self.choose_txt)
 
-        row_txt.addWidget(lbl_txt)
-        row_txt.addWidget(self.lbl_txt_file, 1)
-        row_txt.addWidget(btn_txt)
-        main_layout.addLayout(row_txt)
+        grid.addWidget(self.lbl_txt, 1, 0)
+        grid.addWidget(self.edit_txt, 1, 1)
+        grid.addWidget(btn_txt, 1, 2)
 
-        # ===== PDF 选择 =====
-        row_pdf = QHBoxLayout()
-        lbl_pdf = QLabel("PDF:")
-        self.lbl_pdf_file = QLabel("No PDF selected")
-        self.lbl_pdf_file.setObjectName("FileNameLabel")
-
-        # 橙色字段名
-        lbl_pdf.setStyleSheet(orange_style)
-
-        btn_pdf = QPushButton("Add PDF")
+        # Row 2: PDF
+        self.lbl_pdf = _mk_label("PDF:")
+        self.edit_pdf = _mk_edit("No PDF selected", read_only=True, obj="FilePathEdit")
+        btn_pdf = _mk_browse_btn("Browse PDF")
         btn_pdf.clicked.connect(self.choose_pdf)
 
-        row_pdf.addWidget(lbl_pdf)
-        row_pdf.addWidget(self.lbl_pdf_file, 1)
-        row_pdf.addWidget(btn_pdf)
-        main_layout.addLayout(row_pdf)
+        grid.addWidget(self.lbl_pdf, 2, 0)
+        grid.addWidget(self.edit_pdf, 2, 1)
+        grid.addWidget(btn_pdf, 2, 2)
 
-        # ===== 底部按钮：Cancel / Confirm =====
+        # ===== Buttons =====
         btn_row = QHBoxLayout()
-        btn_row.setContentsMargins(0, 12, 0, 0)  # 顶部留一点空
-        btn_row.setSpacing(12)                   # 两个按钮之间的间距
+        btn_row.setContentsMargins(0, 6, 0, 0)
+        btn_row.setSpacing(12)
 
         btn_cancel = QPushButton("Cancel")
+        btn_cancel.setObjectName("CancelButton")
         btn_cancel.clicked.connect(self.reject)
 
         btn_ok = QPushButton("Confirm")
-        btn_ok.setObjectName("PrimaryButton") 
+        btn_ok.setObjectName("PrimaryButton")
         btn_ok.clicked.connect(self.on_confirm)
 
-        # 左右各一个 stretch，让按钮居中
         btn_row.addStretch(1)
         btn_row.addWidget(btn_cancel)
         btn_row.addWidget(btn_ok)
         btn_row.addStretch(1)
 
-        main_layout.addLayout(btn_row)
+        card_layout.addLayout(btn_row)
 
-    # ---------- 槽函数 ----------
+        # 关键：按字体动态同步尺寸，跨设备/DPI 更稳
+        self._sync_metrics()
+
+    def _sync_metrics(self):
+        fm = self.fontMetrics()
+
+        # 控件高度：跟随字体变化
+        h = max(34, int(fm.height() * 2.2))
+        self.edit_name.setMinimumHeight(h)
+        self.edit_txt.setMinimumHeight(h)
+        self.edit_pdf.setMinimumHeight(h)
+
+        # label 列宽：取最大文本宽度 + padding
+        w = max(
+            fm.horizontalAdvance("Sample Name:"),
+            fm.horizontalAdvance("TXT:"),
+            fm.horizontalAdvance("PDF:")
+        ) + max(12, int(fm.height() * 0.6))
+
+        self.lbl_name.setMinimumWidth(w)
+        self.lbl_txt.setMinimumWidth(w)
+        self.lbl_pdf.setMinimumWidth(w)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._sync_metrics()
+
+    # ---------- slots ----------
     def choose_txt(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Choose TXT",
             "",
-            "Text Files (*.txt);;All Files (*)"         
+            "Text Files (*.txt);;All Files (*)"
         )
         if not path:
             return
 
         self.txt_path = path
-        self.lbl_txt_file.setText(os.path.basename(path))
+        self._set_file_to_edit(self.edit_txt, path)
 
-
-        # 如果「名字」目前是空的，则尝试用 TXT 里识别的样品名来填
         if not self.edit_name.text().strip():
             try:
                 basic = parse_dsc_txt_basic(path)
-                auto_name = basic.sample_name  # 解析出的样品名
-
-                # 如果解析不到样品名，就退回到文件名（去掉后缀）
+                auto_name = basic.sample_name or ""
                 if not auto_name:
                     auto_name = Path(path).stem
-
                 self.edit_name.setText(auto_name)
-            except Exception as e:
-                # 解析出错时，为了不影响用户使用，可以只退回到文件名
-                auto_name = Path(path).stem
-                self.edit_name.setText(auto_name)
+            except Exception:
+                self.edit_name.setText(Path(path).stem)
 
     def choose_pdf(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -139,7 +192,12 @@ class AddSampleDialog(QDialog):
             return
 
         self.pdf_path = path
-        self.lbl_pdf_file.setText(os.path.basename(path))
+        self._set_file_to_edit(self.edit_pdf, path)
+
+    def _set_file_to_edit(self, edit: QLineEdit, full_path: str):
+        base = os.path.basename(full_path)
+        edit.setText(base)
+        edit.setToolTip(full_path)
 
     def on_confirm(self):
         if not self.txt_path:
@@ -152,7 +210,6 @@ class AddSampleDialog(QDialog):
 
         self.accept()
 
-    # 方便主窗口读取
     @property
     def sample_name(self) -> str:
         return self.edit_name.text().strip()

@@ -1,41 +1,42 @@
 /* =========================================================
-   0) Global Base
+   Light Mode (soft warm)
+   - 改：背景、正文文字、边框对比
+   - 不改：按钮主色体系（沿用夜间）
    ========================================================= */
 
    * {
-    color: #f5f5f5;
+    color: #2b2b2b;
 }
 
 QMainWindow {
-    background-color: #2c313e;
+    background-color: #e9e1cf; /* 微黄，不刺眼 */
 }
 
 QWidget {
-    background-color: #202124;
+    background-color: #f4efe2; /* 更浅的暖底 */
 }
 
 QLabel {
     background-color: transparent;
 }
 
-/* Template / Output value 居中（你的需求） */
+/* Template / Output value 居中 */
 QLabel#HeaderValue {
     qproperty-alignment: AlignCenter;
 }
 
-
 /* =========================================================
-   1) Typography / Headings
+   Typography / Headings
    ========================================================= */
 
 QLabel#AppTitle {
     font-weight: 600;
-    color: #ffffff;
+    color: #1f1f1f;
 }
 
 QLabel#sectionTitle {
     font-weight: 600;
-    color: #f0f0f0;
+    color: #1f1f1f;
 }
 
 QLabel#SampleManualTitle {
@@ -47,29 +48,28 @@ QLabel#SampleNameLabel {
 }
 
 QLabel#HeaderLabel {
-    color: #dddddd;
+    color: #3a3a3a;
 }
 
 QLabel#HeaderValue {
-    color: #ffffff;
+    color: #1f1f1f;
 }
 
 QLabel#CurrentSampleLabel {
-    font-weight: 500;
-    color: #ffb74d;
+    font-weight: 600;
+    color: #8a5a18; /* 暖色强调 */
 }
 
-
 /* =========================================================
-   2) Step Bar
+   Step Bar（按钮颜色不改，只调整在浅底上可读性）
    ========================================================= */
 
 QPushButton#StepButton {
     min-height: 34px;
     padding: 6px 14px;
     border-radius: 18px;
-    border: 1px solid #555a64;
-    background-color: #2b2f36;
+    border: 1px solid #a7a19a;
+    background-color: #2b2f36; /* 沿用夜间深按钮体系 */
     color: #e0e0e0;
 }
 
@@ -87,17 +87,16 @@ QPushButton#StepButton[state="done"] {
 
 QPushButton#StepButton[state="todo"] {
     background-color: #2b2f36;
-    border-color: #555a64;
-    color: #9e9e9e;
+    border-color: #a7a19a;
+    color: #cfcfcf;
 }
 
 QLabel#StepArrow {
-    color: #9e9e9e;
+    color: #6b6b6b;
 }
 
-
 /* =========================================================
-   3) Buttons
+   Buttons（不改主色，只保证边框在浅底上不突兀）
    ========================================================= */
 
 QPushButton {
@@ -117,8 +116,8 @@ QPushButton:pressed:enabled {
 }
 
 QPushButton:disabled {
-    color: #777777;
-    border-color: #444444;
+    color: #c0c0c0;
+    border-color: #777777;
 }
 
 /* 顶部导航 */
@@ -131,17 +130,12 @@ QPushButton#StepNavButtonPrimary {
 
 QPushButton#StepNavButton {
     background-color: transparent;
-    border: 1px solid #616161;
-    color: #e0e0e0;
+    border: 1px solid #8e8e8e;
+    color: #2b2b2b;
 }
 
 QPushButton#StepNavButton:hover:enabled {
-    background-color: #383c42;
-}
-
-QPushButton#StepNavButton:disabled {
-    color: #777777;
-    border-color: #444444;
+    background-color: rgba(0,0,0,0.06);
 }
 
 QPushButton#StepNavButtonPrimary {
@@ -154,17 +148,16 @@ QPushButton#StepNavButtonPrimary:hover:enabled {
     background-color: #f6b73a;
 }
 
-/* Add sample */
 QPushButton#AddSampleButton {
     background-color: #f58a42;
     border-color: #f58a42;
+    color: #ffffff;
 }
 
 QPushButton#AddSampleButton:hover:enabled {
     background-color: #f6b73a;
 }
 
-/* 主按钮（橙色） */
 QPushButton#PrimaryButton {
     background-color: #f58a42;
     border: 1px solid #f58a42;
@@ -175,127 +168,121 @@ QPushButton#PrimaryButton:hover:enabled {
     background-color: #f6b73a;
 }
 
-/* 删除按钮 */
 QPushButton#SampleRemoveButton {
     background-color: #d32f2f;
     border-color: #d32f2f;
+    color: #ffffff;
 }
 
 QPushButton#SampleRemoveButton:hover:enabled {
     background-color: #e53935;
 }
 
-/* 样品切换按钮 */
 QPushButton#SampleNavButton {
     min-width: 32px;
     min-height: 28px;
 }
 
-
 /* =========================================================
-   4) Inputs
+   Inputs（浅底上：给透明会像“没框”，因此加一点浅底填充）
    ========================================================= */
 
 QLineEdit, QTextEdit {
-    background-color: transparent;
-    border: 1px solid #5f6368;
+    background-color: rgba(255, 255, 255, 0.55);
+    border: 1px solid #b7b0a7;
     border-radius: 10px;
     padding: 8px 10px;
+    color: #1f1f1f;
 }
 
 QLineEdit:focus, QTextEdit:focus {
     border-color: #f58a42;
+    background-color: rgba(255, 255, 255, 0.75);
 }
 
 QLineEdit[readOnly="true"] {
-    color: #b0b0b0;
+    color: #4a4a4a;
 }
 
 QLineEdit::placeholder, QTextEdit::placeholder {
-    color: #9e9e9e;
+    color: #6f6f6f;
 }
 
-
 /* =========================================================
-   5) Containers / Cards
+   Containers / Cards
    ========================================================= */
 
 QScrollArea {
-    background-color: #202124;
+    background-color: #f4efe2;
     border: none;
 }
 
 QWidget#SampleGroup {
     background-color: transparent;
     border-radius: 10px;
-    border: 1px solid #3c4043;
+    border: 1px solid #c8c1b6;
 }
 
 QWidget#SampleCard {
-    background-color: transparent;
+    background-color: rgba(255,255,255,0.35);
     border-radius: 10px;
     border: 1px solid transparent;
 }
 
 QWidget#SampleCard:hover {
-    border-color: #5f6368;
+    border-color: #b7b0a7;
 }
 
-/* Template / Output box：保持透明背景 + 圆角边框 */
+/* Template / Output box */
 QWidget#TemplateBox, QWidget#OutputBox {
-    background-color: transparent;
+    background-color: rgba(255,255,255,0.35);
     border-radius: 10px;
-    border: 1px solid #5f6368;
+    border: 1px solid #b7b0a7;
     padding: 6px 10px;
 }
 
-
 /* =========================================================
-   6) AddSampleDialog (integrated)
+   AddSampleDialog
    ========================================================= */
 
 QDialog#AddSampleDialog {
-    background-color: #202124;
+    background-color: #f4efe2;
 }
 
 QFrame#DialogCard {
-    background-color: #202124;
-    border: 1px solid #3c4043;
+    background-color: rgba(255,255,255,0.45);
+    border: 1px solid #c8c1b6;
     border-radius: 14px;
 }
 
 QLabel#DialogTitle {
     font-weight: 700;
-    color: #ffffff;
+    color: #1f1f1f;
 }
 
 QLabel#DialogHint {
-    color: #9aa0a6;
+    color: #5a5a5a;
 }
 
-/* 橙色字段名 */
 QLabel#AccentLabel {
-    color: rgb(255,119,0);
+    color: rgb(188, 104, 0);
     font-weight: 700;
 }
 
-/* 文件显示框 / name 输入框 */
 QLineEdit#FilePathEdit,
 QLineEdit#NameEdit {
     border-radius: 10px;
     padding: 8px 10px;
 }
 
-/* Browse / Cancel */
 QPushButton#BrowseButton,
 QPushButton#CancelButton {
     border-radius: 10px;
     padding: 6px 14px;
 }
 
-
 /* =========================================================
-   7) ScrollBars
+   ScrollBars
    ========================================================= */
 
 QScrollBar:vertical {
@@ -305,12 +292,12 @@ QScrollBar:vertical {
 }
 
 QScrollBar::handle:vertical {
-    background-color: #5f6368;
+    background-color: #a7a19a;
     border-radius: 4px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background-color: #9aa0a6;
+    background-color: #8f8a84;
 }
 
 QScrollBar::add-line:vertical,
@@ -325,12 +312,12 @@ QScrollBar:horizontal {
 }
 
 QScrollBar::handle:horizontal {
-    background-color: #5f6368;
+    background-color: #a7a19a;
     border-radius: 4px;
 }
 
 QScrollBar::handle:horizontal:hover {
-    background-color: #9aa0a6;
+    background-color: #8f8a84;
 }
 
 QScrollBar::add-line:horizontal,
@@ -338,7 +325,7 @@ QScrollBar::sub-line:horizontal {
     width: 0px;
 }
 
-/* ================= Theme Toggle (Night) ================= */
+/* ================= Theme Toggle (Light) ================= */
 
 QCheckBox#ThemeToggle { background: transparent; spacing: 8px; }
 
@@ -346,8 +333,8 @@ QCheckBox#ThemeToggle::indicator {
     width: 44px;
     height: 22px;
     border-radius: 999px;
-    border: 1px solid #5f6368;
-    background-color: #3c4043;
+    border: 1px solid #b7b0a7;
+    background-color: rgba(0,0,0,0.10);
 }
 
 QCheckBox#ThemeToggle::indicator:checked {
@@ -356,5 +343,5 @@ QCheckBox#ThemeToggle::indicator:checked {
 }
 
 QLabel#ThemeModeLabel {
-    color: #9aa0a6;
+    color: #5a5a5a;
 }

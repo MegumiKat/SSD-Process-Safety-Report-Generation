@@ -1,17 +1,17 @@
-# src/ui_main.py
-import sys, os
+# src/ui/ui_main.py
+import os
 from typing import Optional, List
-
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
-    QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget,
-    QSpacerItem
-)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QIcon, QResizeEvent, QFont
 from pathlib import Path
 from datetime import datetime
+
+from PyQt6.QtWidgets import (
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
+    QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget,
+    QSpacerItem, QGridLayout, QApplication
+)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap, QResizeEvent, QFont
 
 from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
 from src.utils.parser_dsc import parse_dsc_txt_basic
@@ -23,6 +23,9 @@ from src.tools.workflow_controller import WorkflowController
 from src.tools.sample_controller import SampleController
 from src.tools.segments_controller import SegmentsController
 from src.tools.report_controller import ReportController
+
+from src.tools.theme_controller import ThemeController
+from src.ui.widgets.toggle_switch import ToggleSwitch
 
 
 class MainWindow(QMainWindow):
@@ -61,6 +64,23 @@ class MainWindow(QMainWindow):
         self.step_completed: List[bool] = [False, False, False]
         self.add_sample_btn: Optional[QPushButton] = None
 
+        # ✅ Step1 files grid metrics
+        self._files_grid: Optional[QGridLayout] = None
+        self._btn_tpl: Optional[QPushButton] = None
+        self._btn_out: Optional[QPushButton] = None
+        self._tpl_box_layout: Optional[QHBoxLayout] = None
+        self._out_box_layout: Optional[QHBoxLayout] = None
+
+        # ==== Theme Controller ====
+        app = QApplication.instance()
+        project_root = Path(__file__).resolve().parents[2]  # src/ui/ui_main.py -> project root
+        light_qss_path = project_root / "src" / "assets" / "app_light.qss"
+        dark_qss = app.styleSheet() if app else ""
+        self.theme_ctrl = ThemeController(app, dark_qss=dark_qss, light_qss_path=light_qss_path)
+
+        # theme state: True=Night(Dark), False=Day(Light)
+        self.is_dark: bool = True
+
         # ==== 根布局 ====
         central = QWidget()
         root_layout = QVBoxLayout(central)
@@ -90,7 +110,7 @@ class MainWindow(QMainWindow):
             return line
 
         # =====================================================================
-        # 顶部：Logo + 标题 + Step
+        # 顶部：Logo + 标题 + Theme Switch + Step
         # =====================================================================
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
@@ -121,9 +141,22 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.title_label, 0)
 
         top_row.addStretch(1)
+
+        # ---- Theme switch (RIGHT) ----
+        self.theme_mode_label = QLabel("Night")
+        self.theme_mode_label.setObjectName("ThemeModeLabel")
+
+        self.theme_switch = ToggleSwitch()
+        self.theme_switch.setChecked(True)  # default dark/night
+        self.theme_switch.toggled.connect(self.on_theme_toggled)
+
+        top_row.addWidget(self.theme_mode_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        top_row.addWidget(self.theme_switch, 0, Qt.AlignmentFlag.AlignVCenter)
+
         header_layout.addLayout(top_row)
         header_layout.addWidget(_create_separator("h"))
 
+        # ---- Step bar ----
         step_bar_widget = QWidget()
         step_bar_layout = QHBoxLayout(step_bar_widget)
         step_bar_layout.setContentsMargins(8, 0, 8, 0)
@@ -208,72 +241,73 @@ class MainWindow(QMainWindow):
         files_group = QWidget()
         files_group_layout = QVBoxLayout(files_group)
         files_group_layout.setContentsMargins(0, 0, 0, 0)
-        files_group_layout.setSpacing(4)
+        files_group_layout.setSpacing(8)
 
-        row_tpl = QHBoxLayout()
-        row_tpl.setContentsMargins(0, 0, 0, 0)
-        row_tpl.setSpacing(8)
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
 
         lbl_tpl = QLabel("Template:")
         lbl_tpl.setObjectName("HeaderLabel")
+        lbl_tpl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.label_tpl = QLabel(os.path.basename(self.template_path))
         self.label_tpl.setObjectName("HeaderValue")
-        self.label_tpl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.label_tpl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.label_tpl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.template_box = QWidget()
         self.template_box.setObjectName("TemplateBox")
         tpl_box_layout = QHBoxLayout(self.template_box)
         tpl_box_layout.setContentsMargins(6, 0, 6, 0)
+        tpl_box_layout.setSpacing(0)
         tpl_box_layout.addWidget(self.label_tpl)
-
-        lbl_tpl.setMinimumWidth(90)
-        lbl_tpl.setMaximumWidth(120)
         self.template_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._tpl_box_layout = tpl_box_layout
 
         btn_tpl = QPushButton("Change")
         btn_tpl.clicked.connect(self.choose_template)
+        btn_tpl.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._btn_tpl = btn_tpl
 
-        row_tpl.addWidget(lbl_tpl)
-        row_tpl.addSpacing(20)
-        row_tpl.addWidget(self.template_box, 1)
-        row_tpl.addSpacing(20)
-        row_tpl.addWidget(btn_tpl)
-
-        row_out = QHBoxLayout()
-        row_out.setContentsMargins(0, 6, 0, 0)
-        row_out.setSpacing(8)
+        grid.addWidget(lbl_tpl, 0, 0)
+        grid.addWidget(self.template_box, 0, 1)
+        grid.addWidget(btn_tpl, 0, 2)
 
         lbl_out = QLabel("Output:")
         lbl_out.setObjectName("HeaderLabel")
+        lbl_out.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.output_box = QWidget()
         self.output_box.setObjectName("OutputBox")
         out_layout = QHBoxLayout(self.output_box)
         out_layout.setContentsMargins(6, 0, 6, 0)
-        out_layout.setSpacing(4)
+        out_layout.setSpacing(0)
 
         self.output_label = QLabel("< None >")
         self.output_label.setObjectName("HeaderValue")
-        self.output_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.output_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.output_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         out_layout.addWidget(self.output_label)
 
         self.output_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._out_box_layout = out_layout
 
         btn_out = QPushButton("Choose")
         btn_out.clicked.connect(self.choose_output)
+        btn_out.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._btn_out = btn_out
 
-        lbl_out.setMinimumWidth(90)
-        lbl_out.setMaximumWidth(120)
+        grid.addWidget(lbl_out, 1, 0)
+        grid.addWidget(self.output_box, 1, 1)
+        grid.addWidget(btn_out, 1, 2)
 
-        row_out.addWidget(lbl_out)
-        row_out.addSpacing(20)
-        row_out.addWidget(self.output_box, 1)
-        row_out.addSpacing(20)
-        row_out.addWidget(btn_out)
-
-        files_group_layout.addLayout(row_tpl)
-        files_group_layout.addLayout(row_out)
+        files_group_layout.addLayout(grid)
+        self._files_grid = grid
 
         self._header_field_labels = [lbl_tpl, lbl_out]
         self._header_field_values = [self.label_tpl, self.output_label]
@@ -487,15 +521,42 @@ class MainWindow(QMainWindow):
 
         self.btn_prev.clicked.connect(self.workflow.on_prev_clicked)
         self.btn_next.clicked.connect(self.workflow.on_next_clicked)
-
         self.btn_prev_sample.clicked.connect(self.sample_ctrl.goto_prev_sample)
         self.btn_next_sample.clicked.connect(self.sample_ctrl.goto_next_sample)
-
         self.auto_sample_name.textChanged.connect(self.sample_ctrl.on_auto_sample_name_changed)
 
         self.workflow.update_step_states()
         self.workflow.update_nav_buttons()
         self.sample_ctrl.update_auto_sample_header()
+
+        # 首帧：同步 switch 尺寸，避免第一次很大
+        self._sync_theme_switch_metrics()
+
+    # =====================================================================
+    # Theme Switch logic
+    # =====================================================================
+    def on_theme_toggled(self, checked: bool):
+        """
+        checked=True => Night(Dark)
+        checked=False => Day(Light)
+        """
+        self.is_dark = bool(checked)
+        self.theme_mode_label.setText("Night" if self.is_dark else "Day")
+        self.theme_ctrl.apply("dark" if self.is_dark else "light")
+
+        # 切换后强制同步一次，避免控件sizeHint不一致
+        self._sync_theme_switch_metrics()
+        self._apply_font_scaling()
+        self.updateGeometry()
+
+    def _sync_theme_switch_metrics(self):
+        """
+        Switch 尺寸跟随字体/DPI，不写死（但控制一个合理范围）。
+        """
+        fm = self.fontMetrics()
+        h = max(22, int(fm.height() * 1.20))
+        w = max(44, int(h * 2.0))
+        self.theme_switch.setFixedSize(w, h)
 
     # =====================================================================
     # UI helper：给 controller 使用
@@ -512,6 +573,42 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.No,
         )
         return reply == QMessageBox.StandardButton.Yes
+
+    # =====================================================================
+    # Step1 grid metrics
+    # =====================================================================
+    def _sync_files_grid_metrics(self):
+        if self._files_grid is None:
+            return
+        if self._btn_tpl is None or self._btn_out is None:
+            return
+
+        fm = self.fontMetrics()
+
+        hspace = max(18, int(fm.height() * 1.0))
+        self._files_grid.setHorizontalSpacing(hspace)
+
+        box_pad = max(10, int(fm.height() * 0.65))
+        if self._tpl_box_layout is not None:
+            self._tpl_box_layout.setContentsMargins(box_pad, 0, box_pad, 0)
+        if self._out_box_layout is not None:
+            self._out_box_layout.setContentsMargins(box_pad, 0, box_pad, 0)
+
+        vspace = max(12, int(fm.height() * 0.65))
+        self._files_grid.setVerticalSpacing(vspace)
+
+        row_h = max(
+            self._btn_tpl.sizeHint().height(),
+            self._btn_out.sizeHint().height(),
+            self.template_box.sizeHint().height(),
+            self.output_box.sizeHint().height(),
+            fm.height() + 12,
+        )
+        self._files_grid.setRowMinimumHeight(0, row_h)
+        self._files_grid.setRowMinimumHeight(1, row_h)
+
+        self.template_box.setMinimumHeight(row_h)
+        self.output_box.setMinimumHeight(row_h)
 
     # =====================================================================
     # 字体缩放
@@ -604,12 +701,20 @@ class MainWindow(QMainWindow):
 
         self._refresh_auto_edits_width()
 
+        if self._files_grid is not None:
+            fm = self.fontMetrics()
+            w_label = max(fm.horizontalAdvance("Template:"), fm.horizontalAdvance("Output:"))
+            self._files_grid.setColumnMinimumWidth(0, w_label + 12)
+
+        self._sync_files_grid_metrics()
+        self._sync_theme_switch_metrics()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._apply_font_scaling()
 
     # =====================================================================
-    # Auto 区输入框宽度
+    # Auto inputs width
     # =====================================================================
     def _refresh_auto_edits_width(self, padding: int = 36):
         if not self._auto_edits:
@@ -632,7 +737,7 @@ class MainWindow(QMainWindow):
             e.setMaximumWidth(target)
 
     # =====================================================================
-    # 基础 UI 辅助
+    # Basic UI helpers
     # =====================================================================
     def _set_output_empty_style(self):
         self.output_label.setStyleSheet("color: #ff6666;")
@@ -642,6 +747,7 @@ class MainWindow(QMainWindow):
         self.output_label.setStyleSheet("color: #33cc33;")
 
     def _init_placeholders(self):
+        # Step3 manual fields placeholders
         self.input_lsmp_code.setPlaceholderText("Test Code")
         self.input_request_id.setPlaceholderText("Request Id")
         self.input_customer.setPlaceholderText("Customer Information")
@@ -658,6 +764,7 @@ class MainWindow(QMainWindow):
         except AttributeError:
             pass
 
+        # Step2 auto fields placeholders
         self.auto_sample_name.setPlaceholderText("Sample Name")
         self.auto_sample_mass.setPlaceholderText("Sample Mass(mg)")
         self.auto_operator.setPlaceholderText("Operator")
@@ -668,7 +775,7 @@ class MainWindow(QMainWindow):
         self.auto_end_date.setPlaceholderText("YYYY/MM/DD")
 
     # =====================================================================
-    # Step 1: 样品列表
+    # Step 1: Sample list
     # =====================================================================
     def _rebuild_sample_list_ui(self):
         while self.sample_list_layout.count():
@@ -743,7 +850,7 @@ class MainWindow(QMainWindow):
         )
 
     # =====================================================================
-    # Step 3: 手动样品表单
+    # Step 3: Manual sample forms
     # =====================================================================
     def _rebuild_manual_sample_forms(self):
         self._sync_manual_fields_from_ui()
@@ -829,7 +936,7 @@ class MainWindow(QMainWindow):
             mf.assign_to = widgets["assign_to"].text().strip()
 
     # =====================================================================
-    # 解析样品 txt
+    # Parse sample txt
     # =====================================================================
     def _parse_sample(self, sample: SampleItem):
         if not sample.txt_path:
@@ -891,22 +998,10 @@ class MainWindow(QMainWindow):
             sample.segments = []
             self.parsed_info = None
             self.parsed_segments = None
-
-            has_txt = bool(sample.txt_path)
-            has_pdf = bool(sample.pdf_path)
-            if not has_txt and not has_pdf:
-                file_info = f"{sample.name} (TXT + PDF)"
-            elif not has_txt:
-                file_info = f"{sample.name} (TXT)"
-            elif not has_pdf:
-                file_info = f"{sample.name} (PDF)"
-            else:
-                file_info = sample.name
-
-            self._add_file_log(f"[Parsing Failed] {file_info} - {e}")
+            self._add_file_log(f"[Parsing Failed] {sample.name} - {e}")
 
     # =====================================================================
-    # 文件选择 & 模板
+    # File choose
     # =====================================================================
     def choose_output(self):
         path, _ = QFileDialog.getSaveFileName(self, "Choose Output WORD", "", "Word file (*.docx)")
@@ -922,7 +1017,7 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Info", "Change Template function is not implemented yet.")
 
     # =====================================================================
-    # End Date 取样品里最新
+    # End date
     # =====================================================================
     def _get_latest_end_date_from_samples(self) -> str:
         if not self.samples:
@@ -950,7 +1045,7 @@ class MainWindow(QMainWindow):
         return latest_raw
 
     # =====================================================================
-    # 简单日志
+    # Logs
     # =====================================================================
     def render_log(self):
         pass
@@ -962,36 +1057,3 @@ class MainWindow(QMainWindow):
     def _add_file_log(self, msg: str):
         self.file_logs.append(msg)
         print(msg)
-
-
-def main():
-    app = QApplication(sys.argv)
-
-    base_font = QFont()
-    base_font.setPointSize(30)
-    app.setFont(base_font)
-
-    base_dir = Path(__file__).resolve().parents[1]
-    icon_path_ico = base_dir / "assets" / "app.ico"
-    icon_path_png = base_dir / "assets" / "app.png"
-
-    icon_path = icon_path_ico if icon_path_ico.exists() else icon_path_png
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
-    else:
-        print(f"[Warning] Icon file not found: {icon_path_ico} / {icon_path_png}")
-
-    qss_path = base_dir / "assets" / "app.qss"
-    if qss_path.exists():
-        with open(qss_path, "r", encoding="utf-8") as f:
-            app.setStyleSheet(f.read())
-    else:
-        print(f"[Warning] QSS file not found: {qss_path}")
-
-    win = MainWindow()
-    win.showMaximized()
-    sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    main()
