@@ -5,9 +5,13 @@
 ## Title/Caption
 
 - **Title:** DSC Report Generation Tool (Python)
-- **Date Generated / Last Updated:** 2025-12-15
+- **Date Generated / Last Updated:** 2026-01-08
 - **Produced For:** Process Safety / Materials reporting workflow (professional ePortfolio artifact)
 - **Artifact Type:** Automation tool + report template pipeline (TXT/PDF → Word report)
+
+## Motivation
+
+This project was initiated to address a recurring bottleneck in the Process Safety / Materials reporting workflow: generating DSC reports is time-consuming, highly repetitive, and error-prone when performed manually. In the original process, engineers often had to copy and reconcile values across multiple sources (instrument TXT outputs, PDF figures, range information, and request metadata), while repeatedly re-formatting content into a standardized Word template. This not only consumed significant time per sample, but also increased the likelihood of human mistakes during data verification—such as misreading thermal parameters, missing key segments, inconsistently transcribing units, or incorrectly referencing figure/range information from PDFs. Over time, these issues created avoidable rework cycles (review feedback, re-checking raw data, and manual correction) and reduced overall report consistency and traceability. The tool therefore focuses on automating the extraction, structuring, and templated report generation pipeline, so that effort is shifted from repetitive transcription to higher-value review and validation, with improved standardization and reduced risk of manual errors.
 
 ## Project Structure
 

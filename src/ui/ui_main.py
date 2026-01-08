@@ -8,10 +8,10 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QTextEdit, QFormLayout,
     QMessageBox, QScrollArea, QSizePolicy, QFrame, QDialog, QStackedWidget,
-    QSpacerItem, QGridLayout, QApplication
+    QSpacerItem, QGridLayout, QApplication, QStyle
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QResizeEvent, QFont
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QPixmap, QResizeEvent, QFont, QDesktopServices
 
 from src.config.config import DEFAULT_TEMPLATE_PATH, LOGO_PATH
 from src.utils.parser_dsc import parse_dsc_txt_basic
@@ -1057,3 +1057,44 @@ class MainWindow(QMainWindow):
     def _add_file_log(self, msg: str):
         self.file_logs.append(msg)
         print(msg)
+
+
+    def show_report_success_dialog(self, output_path: str):
+        """生成成功提示：Open File(橙色) + OK(灰色)，对勾 icon，路径橙色高亮。"""
+        if not output_path:
+            QMessageBox.information(self, "Success", "Report generated successfully.")
+            return
+
+        p = Path(output_path)
+
+        box = QMessageBox(self)
+        box.setWindowTitle("Success")
+        box.setTextFormat(Qt.TextFormat.RichText)
+
+        pm = self.style().standardPixmap(QStyle.StandardPixmap.SP_DialogApplyButton)
+        box.setIconPixmap(pm)
+
+        # 路径橙色高亮
+        orange = "rgb(255,119,0)"
+        box.setText(
+            "Report generated successfully.<br>"
+            f'<span style="color:{orange}; font-weight:700;">{p}</span>'
+        )
+
+        btn_open_file = box.addButton("Open File", QMessageBox.ButtonRole.AcceptRole)
+        btn_ok = box.addButton("OK", QMessageBox.ButtonRole.RejectRole)
+
+        # 按钮样式：Open File=主按钮(橙)，OK=上一页按钮(灰)
+        btn_open_file.setObjectName("PrimaryButton")
+        btn_ok.setObjectName("StepNavButton")
+
+        # 强制刷新一次样式（QSS 已加载时很关键）
+        for b in (btn_open_file, btn_ok):
+            b.style().unpolish(b)
+            b.style().polish(b)
+
+        box.setDefaultButton(btn_open_file)
+        box.exec()
+
+        if box.clickedButton() == btn_open_file:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))

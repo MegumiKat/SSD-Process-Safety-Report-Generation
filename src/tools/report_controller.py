@@ -241,7 +241,11 @@ class ReportController:
                 samples=v.samples,
             )
             v._add_file_log(f"[Generate Successful] {os.path.basename(v.output_path)}")
-            QMessageBox.information(v, "Successful", "Generate Successful!\nCan open word and check")
+            # ✅ 成功提示：带“打开文件/文件夹”按钮
+            if hasattr(v, "show_report_success_dialog"):
+                v.show_report_success_dialog(v.output_path)
+            else:
+                QMessageBox.information(v, "Successful", "Generate Successful!\nCan open word and check")
         except Exception as e:
             v._add_file_log(f"[Generate Failed] {os.path.basename(v.output_path)} - {e}")
             QMessageBox.critical(v, "Error", f"Generate Failed\n{e}")

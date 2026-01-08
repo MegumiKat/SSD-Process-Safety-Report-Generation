@@ -121,8 +121,10 @@ QPushButton:disabled {
 }
 
 /* 顶部导航 */
+/* 统一“胶囊按钮”尺寸：Previous / Next / OK / Open File 都走同一套 */
 QPushButton#StepNavButton,
-QPushButton#StepNavButtonPrimary {
+QPushButton#StepNavButtonPrimary,
+QPushButton#PrimaryButton {
     min-height: 32px;
     padding: 6px 20px;
     border-radius: 20px;
@@ -345,3 +347,4 @@ QCheckBox#ThemeToggle::indicator:checked {
 QLabel#ThemeModeLabel {
     color: #5a5a5a;
 }
+
